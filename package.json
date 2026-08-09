@@ -1,0 +1,16 @@
+{
+  "name": "jaryan-monorepo",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "devDependencies": {
+    "prisma": "^7.9.1",
+    "typescript": "^5.3.0"
+  },
+  "dependencies": {
+    "@prisma/client": "^7.9.1"
+  }
+}
