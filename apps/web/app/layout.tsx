@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next';
+import 'leaflet/dist/leaflet.css';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -8,7 +9,7 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   colorScheme: 'dark',
-  themeColor: '#0a0d0e',
+  themeColor: '#171815',
 };
 
 export default function RootLayout({
