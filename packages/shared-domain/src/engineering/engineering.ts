@@ -1,10 +1,10 @@
 import { round, ENGINEERING_ASSUMPTIONS, calculateEnergy } from './energy.ts';
 import { SOIL_PROFILES, calculateStructural } from './structural.ts';
-import type { SoilProfile } from './structural.ts';
+import type { SoilProfile, StructuralSystem } from './structural.ts';
 import { calculateWater } from './water.ts';
 
 export { SOIL_PROFILES } from './structural.ts';
-export type { SoilProfile } from './structural.ts';
+export type { SoilProfile, StructuralSystem } from './structural.ts';
 export {
   ENGINEERING_ASSUMPTIONS,
   estimatePeakSunHours,
@@ -25,6 +25,7 @@ export type MountingMode = 'roof' | 'ground';
 export interface EngineeringInputs {
   latitudeDeg: number;
   longitudeDeg: number;
+  structuralSystem: StructuralSystem;
   soilType: SoilType;
   domeRadiusM: number;
   domeHeightM: number;
@@ -43,6 +44,7 @@ export interface EngineeringInputs {
 export const DEFAULT_ENGINEERING_INPUTS: EngineeringInputs = {
   latitudeDeg: 34,
   longitudeDeg: 52,
+  structuralSystem: 'superadobe',
   soilType: 'mixed-unknown',
   domeRadiusM: 3,
   domeHeightM: 3.6,
@@ -159,6 +161,12 @@ export function validateEngineeringInputs(
     categoricalErrors.push({
       field: 'mountingMode',
       message: 'Select roof or ground mounting.',
+    });
+  }
+  if (inputs.structuralSystem !== 'superadobe') {
+    categoricalErrors.push({
+      field: 'structuralSystem',
+      message: 'Select a supported structural system.',
     });
   }
 

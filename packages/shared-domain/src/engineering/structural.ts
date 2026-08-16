@@ -1,5 +1,7 @@
 import type { SoilType } from './engineering.ts';
 
+export type StructuralSystem = 'superadobe';
+
 export interface SoilProfile {
   value: SoilType;
   label: string;

@@ -17,6 +17,8 @@ test('peak sun heuristic is deterministic and bounded', () => {
 });
 
 test('default model produces coherent conservative concept estimates', () => {
+  assert.equal(DEFAULT_ENGINEERING_INPUTS.structuralSystem, 'superadobe');
+
   const result = calculateEngineeringModel(DEFAULT_ENGINEERING_INPUTS);
 
   assert.equal(result.ok, true);
@@ -30,6 +32,29 @@ test('default model produces coherent conservative concept estimates', () => {
   assert.equal(result.outputs.recommendedTankL, 600);
   assert.equal(result.outputs.dataQualityStatus, 'limited');
   assert.equal(result.outputs.geometryStatus, 'review');
+});
+
+test('superadobe structural system is accepted', () => {
+  const result = calculateEngineeringModel({
+    ...DEFAULT_ENGINEERING_INPUTS,
+    structuralSystem: 'superadobe',
+  });
+
+  assert.equal(result.ok, true);
+});
+
+test('unsupported structural system returns a field error', () => {
+  const errors = validateEngineeringInputs({
+    ...DEFAULT_ENGINEERING_INPUTS,
+    structuralSystem: 'steel',
+  });
+
+  assert.deepEqual(errors, [
+    {
+      field: 'structuralSystem',
+      message: 'Select a supported structural system.',
+    },
+  ]);
 });
 
 test('invalid numeric and categorical fields return errors without partial output', () => {
