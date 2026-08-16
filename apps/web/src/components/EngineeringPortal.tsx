@@ -19,7 +19,15 @@ import {
   type MountingMode,
   type NumericInputField,
   type SoilType,
-} from '@/domain/engineering';
+} from '@jaryan/shared-domain';
+import {
+  BASIS_STATUSES,
+  HARDCODED_ASSUMPTIONS,
+  MODEL_BOUNDARY,
+  REFERENCE_BASIS,
+  REFERENCES,
+  STUDY_BASIS,
+} from '@jaryan/shared-knowledge';
 
 const SiteMap = dynamic(() => import('./SiteMap'), {
   ssr: false,
@@ -38,100 +46,6 @@ type Tone =
   | 'water'
   | 'clay'
   | 'sand';
-type BasisStatus =
-  | 'modeled'
-  | 'user input'
-  | 'required field measurement'
-  | 'external professional review'
-  | 'future capability';
-
-interface BasisGroup {
-  title: string;
-  items: Array<{ label: string; status: BasisStatus }>;
-}
-
-const STUDY_BASIS: BasisGroup[] = [
-  {
-    title: 'Site',
-    items: [
-      { label: 'Latitude / longitude', status: 'user input' },
-      { label: 'Exact survey and topography', status: 'required field measurement' },
-      { label: 'Access and construction logistics', status: 'external professional review' },
-      { label: 'Slope and drainage paths', status: 'required field measurement' },
-      { label: 'Flood and erosion risk', status: 'external professional review' },
-      { label: 'Groundwater conditions', status: 'required field measurement' },
-      { label: 'Local climate and wildfire exposure', status: 'external professional review' },
-      { label: 'Seismic, wind, and snow hazards', status: 'external professional review' },
-    ],
-  },
-  {
-    title: 'Soil & foundation',
-    items: [
-      { label: 'User soil category', status: 'user input' },
-      { label: 'Soil classification and gradation', status: 'required field measurement' },
-      { label: 'Moisture content and compaction', status: 'required field measurement' },
-      { label: 'Bearing capacity', status: 'required field measurement' },
-      { label: 'Stabilizer compatibility and dosage', status: 'required field measurement' },
-      { label: 'Foundation type and detailing', status: 'external professional review' },
-      { label: 'Capillary break and waterproofing', status: 'external professional review' },
-      { label: 'Drainage and frost / heave response', status: 'external professional review' },
-    ],
-  },
-  {
-    title: 'Dome / SuperAdobe',
-    items: [
-      { label: 'Envelope quantity and mass', status: 'modeled' },
-      { label: 'Opening area', status: 'user input' },
-      { label: 'Opening geometry and arch continuity', status: 'external professional review' },
-      { label: 'Wall thickness and course height', status: 'external professional review' },
-      { label: 'Barbed wire / tensile reinforcement', status: 'external professional review' },
-      { label: 'Buttressing and bond beams', status: 'external professional review' },
-      { label: 'Roof and weatherproofing system', status: 'external professional review' },
-      { label: 'Gravity, seismic, wind, and snow loads', status: 'external professional review' },
-      { label: 'Construction quality control', status: 'required field measurement' },
-      { label: 'Local code and permit review', status: 'external professional review' },
-    ],
-  },
-  {
-    title: 'Energy',
-    items: [
-      { label: 'Daily demand and autonomy', status: 'user input' },
-      { label: 'Latitude solar heuristic', status: 'modeled' },
-      { label: 'Panel count, capacity, and area', status: 'modeled' },
-      { label: 'Measured load schedule and surge loads', status: 'required field measurement' },
-      { label: 'Seasonal solar resource and shading', status: 'required field measurement' },
-      { label: 'Tilt, azimuth, and temperature losses', status: 'external professional review' },
-      { label: 'Inverter and MPPT/controller selection', status: 'external professional review' },
-      { label: 'Battery chemistry and usable depth', status: 'external professional review' },
-      { label: 'Cable sizing, grounding, and protection', status: 'external professional review' },
-      { label: 'Backup source integration', status: 'future capability' },
-    ],
-  },
-  {
-    title: 'Water',
-    items: [
-      { label: 'Occupancy demand and reserve', status: 'modeled' },
-      { label: 'Water source reliability', status: 'required field measurement' },
-      { label: 'Potable treatment and disinfection', status: 'external professional review' },
-      { label: 'Rainfall and catchment area', status: 'future capability' },
-      { label: 'First-flush and seasonal drought', status: 'external professional review' },
-      { label: 'Fire reserve', status: 'external professional review' },
-      { label: 'Irrigation and process demand', status: 'future capability' },
-      { label: 'Filtration and distribution design', status: 'external professional review' },
-    ],
-  },
-  {
-    title: 'Safety',
-    items: [
-      { label: 'Emergency egress and accessibility', status: 'external professional review' },
-      { label: 'Fire safety', status: 'external professional review' },
-      { label: 'Ventilation and indoor air quality', status: 'external professional review' },
-      { label: 'Electrical protection', status: 'external professional review' },
-      { label: 'Lightning and grounding', status: 'external professional review' },
-      { label: 'Construction hazards and work plan', status: 'external professional review' },
-    ],
-  },
-];
 
 const icons = {
   mark: (
@@ -1054,15 +968,7 @@ export function EngineeringPortal() {
               description="A requirements register showing what is modeled, entered, still measured, professionally reviewed, or left for a future capability."
             />
             <div className="basis-legend" aria-label="Requirement status legend">
-              {(
-                [
-                  'modeled',
-                  'user input',
-                  'required field measurement',
-                  'external professional review',
-                  'future capability',
-                ] as BasisStatus[]
-              ).map((status) => (
+              {BASIS_STATUSES.map((status) => (
                 <span key={status} data-status={status}>
                   {status}
                 </span>
@@ -1084,31 +990,31 @@ export function EngineeringPortal() {
               ))}
             </div>
             <aside className="reference-note">
-              <strong>Reference basis — not a compliance claim</strong>
+              <strong>{REFERENCE_BASIS.disclaimer}</strong>
               <p>
                 Study boundaries were informed by{' '}
                 <a
-                  href="https://calearth.org/pages/resources-for-builders"
+                  href={REFERENCES[0].url}
                   target="_blank"
                   rel="noreferrer"
                 >
-                  CalEarth builder resources
+                  {REFERENCES[0].label}
                 </a>
                 , the{' '}
                 <a
-                  href="https://calearth.org/pages/what-is-superadobe"
+                  href={REFERENCES[1].url}
                   target="_blank"
                   rel="noreferrer"
                 >
-                  CalEarth SuperAdobe overview
+                  {REFERENCES[1].label}
                 </a>
                 , and the U.S. DOE/NREL{' '}
                 <a
-                  href="https://www.energy.gov/sites/default/files/2022-02/understanding-solar-photovoltaic-system-performance.pdf"
+                  href={REFERENCES[2].url}
                   target="_blank"
                   rel="noreferrer"
                 >
-                  PV performance report
+                  {REFERENCES[2].label}
                 </a>
                 . Project-specific codes, evaluation reports, and professional
                 design remain external requirements.
@@ -1120,12 +1026,9 @@ export function EngineeringPortal() {
             <div className="limitations__lead">
               <span className="limitations__icon">{icons.alert}</span>
               <div>
-                <span className="eyebrow">Model boundary</span>
-                <h2 id="limitations-title">Concept estimate only</h2>
-                <p>
-                  Not certified engineering design, a soil mix design, a permit
-                  package, or a construction instruction.
-                </p>
+                <span className="eyebrow">{MODEL_BOUNDARY.eyebrow}</span>
+                <h2 id="limitations-title">{MODEL_BOUNDARY.heading}</h2>
+                <p>{MODEL_BOUNDARY.description}</p>
               </div>
             </div>
             <ul>
@@ -1138,10 +1041,7 @@ export function EngineeringPortal() {
               </li>
               <li>
                 <strong>Hardcoded assumptions</strong>
-                <span>
-                  PV performance, module power density, battery losses, water
-                  use, material density, and layout factors.
-                </span>
+                <span>{HARDCODED_ASSUMPTIONS.join(', ')}</span>
               </li>
               <li>
                 <strong>Professional review</strong>

@@ -8,7 +8,7 @@ import {
   estimatePeakSunHours,
   SOIL_PROFILES,
   validateEngineeringInputs,
-} from '../src/domain/engineering.ts';
+} from '@jaryan/shared-domain';
 
 test('peak sun heuristic is deterministic and bounded', () => {
   assert.equal(estimatePeakSunHours(34), 4.1);
