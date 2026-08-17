@@ -1,9 +1,4 @@
-import type {
-  EngineeringInputs,
-  EngineeringOutputs,
-  FieldError,
-  StructuralSystem,
-} from '@jaryan/shared-domain';
+import type { StructuralSystem } from '@jaryan/shared-domain';
 
 export type CalculationStatus = 'completed' | 'failed';
 
@@ -19,14 +14,14 @@ export interface CalculationKnowledgeReference {
   readonly knowledgeVersion?: string;
 }
 
-export interface CalculationRecord {
+export interface CalculationRecord<TInput, TOutput, TError> {
   readonly id: string;
   readonly projectId: string;
   readonly system: StructuralSystem;
-  readonly inputs: EngineeringInputs;
-  readonly outputs: EngineeringOutputs | null;
+  readonly inputs: TInput;
+  readonly outputs: TOutput | null;
   readonly assumptions: readonly CalculationAssumptionSnapshot[];
-  readonly errors?: readonly FieldError[];
+  readonly errors?: readonly TError[];
   readonly status: CalculationStatus;
   readonly knowledge: CalculationKnowledgeReference;
   readonly modelVersion?: string;

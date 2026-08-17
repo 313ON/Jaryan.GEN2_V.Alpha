@@ -19,6 +19,48 @@ export const ENGINEERING_ASSUMPTIONS = {
   groundInstallationFootprintFactor: 1.75,
 } as const;
 
+export type EngineeringAssumptionKey = keyof typeof ENGINEERING_ASSUMPTIONS;
+
+export interface EngineeringAssumptionMetadata {
+  readonly key: EngineeringAssumptionKey;
+  readonly id: string;
+  readonly unit?: string;
+  readonly sourceId?: string;
+}
+
+export const ENGINEERING_ASSUMPTION_METADATA: readonly EngineeringAssumptionMetadata[] =
+  [
+    {
+      key: 'solarPerformanceRatio',
+      id: 'solar-performance-ratio',
+      sourceId: 'doe-nrel-pv-performance',
+    },
+    { key: 'batteryUsableDepth', id: 'battery-usable-depth' },
+    {
+      key: 'batteryRoundTripEfficiency',
+      id: 'battery-round-trip-efficiency',
+    },
+    {
+      key: 'waterUsePerPersonL',
+      id: 'water-use-per-person',
+      unit: 'L/person/day',
+    },
+    {
+      key: 'minimumPracticalTankL',
+      id: 'minimum-practical-tank',
+      unit: 'L',
+    },
+    { key: 'modulePowerDensityWm2', id: 'module-power-density', unit: 'W/m²' },
+    {
+      key: 'roofInstallationFootprintFactor',
+      id: 'roof-installation-footprint-factor',
+    },
+    {
+      key: 'groundInstallationFootprintFactor',
+      id: 'ground-installation-footprint-factor',
+    },
+  ] as const;
+
 export interface SolarCoverage {
   expectedDailyGenerationKwh: number;
   demandCovered: boolean;

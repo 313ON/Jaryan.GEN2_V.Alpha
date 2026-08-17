@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+// Domain-owned engineering calculation contract tests.
 import {
   assessSolarCoverage,
   calculateEngineeringModel,

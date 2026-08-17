@@ -118,7 +118,7 @@ test('failed calculation record preserves errors', () => {
   ]);
 });
 
-test('calculation record carries model version and calculated at metadata', () => {
+test('calculation record leaves version metadata optional and preserves calculated at metadata', () => {
   const record = {
     id: 'calc-5',
     projectId: 'project-1',
@@ -128,12 +128,11 @@ test('calculation record carries model version and calculated at metadata', () =
     status: 'failed',
     assumptions: [],
     errors: [],
-    modelVersion: '0.1.0',
     calculatedAt: '2026-08-16T12:00:00.000Z',
     knowledge: { sourceIds: [] },
   };
 
-  assert.equal(record.modelVersion, '0.1.0');
+  assert.equal(record.modelVersion, undefined);
   assert.equal(record.calculatedAt, '2026-08-16T12:00:00.000Z');
 });
 

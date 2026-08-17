@@ -1,6 +1,5 @@
-import type { SoilType } from './engineering.ts';
-
-export type StructuralSystem = 'superadobe';
+import type { SoilType } from './types.ts';
+export type { SoilType, StructuralSystem } from './types.ts';
 
 export interface SoilProfile {
   value: SoilType;
@@ -87,13 +86,61 @@ export interface StructuralCalculation {
   soilProfile: SoilProfile;
 }
 
-export function calculateStructural(inputs: {
+export interface StructuralInputs {
   domeRadiusM: number;
   domeHeightM: number;
   wallThicknessM: number;
   openingAreaM2: number;
   soilType: SoilType;
-}): StructuralCalculation {
+}
+
+export interface StructuralFieldError {
+  field: keyof StructuralInputs;
+  message: string;
+}
+
+export function validateStructuralInputs(
+  inputs: StructuralInputs,
+): StructuralFieldError[] {
+  const errors: StructuralFieldError[] = [];
+  const ranges: Record<
+    Exclude<keyof StructuralInputs, 'soilType'>,
+    { min: number; max: number; label: string }
+  > = {
+    domeRadiusM: { min: 1.5, max: 8, label: 'Dome radius' },
+    domeHeightM: { min: 2, max: 8, label: 'Dome height' },
+    wallThicknessM: { min: 0.3, max: 0.7, label: 'Wall thickness' },
+    openingAreaM2: { min: 0, max: 40, label: 'Opening area' },
+  };
+
+  for (const field of Object.keys(ranges) as Array<
+    Exclude<keyof StructuralInputs, 'soilType'>
+  >) {
+    const value = inputs[field];
+    const range = ranges[field];
+    if (!Number.isFinite(value)) {
+      errors.push({ field, message: `${range.label} requires a numeric value.` });
+    } else if (value < range.min || value > range.max) {
+      errors.push({
+        field,
+        message: `${range.label} must be between ${range.min} and ${range.max}.`,
+      });
+    }
+  }
+
+  if (!(inputs.soilType in SOIL_PROFILES)) {
+    errors.push({
+      field: 'soilType',
+      message: 'Select a supported soil classification.',
+    });
+  }
+
+  return errors;
+}
+
+export function calculateStructural(
+  inputs: StructuralInputs,
+): StructuralCalculation {
   // Spherical-cap curved surface. Openings are deducted only from quantities,
   // not treated as proof that arch/ring continuity is structurally adequate.
   const grossEnvelopeAreaM2 =

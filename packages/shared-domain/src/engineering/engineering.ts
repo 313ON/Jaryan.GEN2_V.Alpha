@@ -1,24 +1,20 @@
 import { round, ENGINEERING_ASSUMPTIONS, calculateEnergy } from './energy.ts';
 import { SOIL_PROFILES, calculateStructural } from './structural.ts';
-import type { SoilProfile, StructuralSystem } from './structural.ts';
+import type { SoilProfile } from './structural.ts';
+import type { SoilType, StructuralSystem } from './types.ts';
 import { calculateWater } from './water.ts';
 
 export { SOIL_PROFILES } from './structural.ts';
-export type { SoilProfile, StructuralSystem } from './structural.ts';
+export type { SoilProfile } from './structural.ts';
+export type { SoilType, StructuralSystem } from './types.ts';
 export {
   ENGINEERING_ASSUMPTIONS,
+  ENGINEERING_ASSUMPTION_METADATA,
   estimatePeakSunHours,
   calculateSolarInstallation,
   assessSolarCoverage,
 } from './energy.ts';
 export type { SolarCoverage, SolarInstallationEstimate } from './energy.ts';
-
-export type SoilType =
-  | 'clay-rich'
-  | 'sandy'
-  | 'silty'
-  | 'gravelly'
-  | 'mixed-unknown';
 
 export type MountingMode = 'roof' | 'ground';
 

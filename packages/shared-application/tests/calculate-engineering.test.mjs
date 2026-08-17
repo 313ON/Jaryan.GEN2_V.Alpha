@@ -4,9 +4,10 @@ import { calculateEngineering } from '@jaryan/shared-application';
 import {
   calculateEngineeringModel,
   DEFAULT_ENGINEERING_INPUTS,
+  ENGINEERING_ASSUMPTION_METADATA,
   ENGINEERING_ASSUMPTIONS,
 } from '@jaryan/shared-domain';
-import { REFERENCE_BASIS } from '@jaryan/shared-knowledge';
+import { REFERENCE_BASIS, REFERENCES } from '@jaryan/shared-knowledge';
 
 const projectId = 'project-1';
 
@@ -37,7 +38,11 @@ test('failed calculation returns a record with null outputs and domain errors', 
   assert.equal(record.status, 'failed');
   assert.equal(record.outputs, null);
   assert.deepEqual(record.errors, domain.errors);
-  assert.deepEqual(record.assumptions, []);
+  assert.equal(record.assumptions.length, ENGINEERING_ASSUMPTION_METADATA.length);
+  assert.equal(
+    record.assumptions.find((assumption) => assumption.id === 'solar-performance-ratio')?.value,
+    ENGINEERING_ASSUMPTIONS.solarPerformanceRatio,
+  );
   assert.equal(record.projectId, projectId);
   assert.ok(Number.isFinite(Date.parse(record.calculatedAt ?? '')));
 });
@@ -67,6 +72,28 @@ test('completed record snapshots every model assumption with stable ids', () => 
     record.assumptions.find((assumption) => assumption.id === 'water-use-per-person')?.unit,
     'L/person/day',
   );
+  assert.equal(
+    record.assumptions.find((assumption) => assumption.id === 'solar-performance-ratio')?.sourceId,
+    'doe-nrel-pv-performance',
+  );
+});
+
+test('domain-owned metadata covers each assumption exactly once', () => {
+  assert.deepEqual(
+    ENGINEERING_ASSUMPTION_METADATA.map((metadata) => metadata.key),
+    Object.keys(ENGINEERING_ASSUMPTIONS),
+  );
+  assert.equal(
+    new Set(ENGINEERING_ASSUMPTION_METADATA.map((metadata) => metadata.id)).size,
+    ENGINEERING_ASSUMPTION_METADATA.length,
+  );
+  const referenceIds = new Set(REFERENCES.map((reference) => reference.id));
+  assert.ok(
+    ENGINEERING_ASSUMPTION_METADATA.every(
+      (metadata) =>
+        metadata.sourceId === undefined || referenceIds.has(metadata.sourceId),
+    ),
+  );
 });
 
 test('calculation is deterministic for identical inputs', () => {
@@ -91,6 +118,8 @@ test('knowledge references use stable catalog identifiers, not array positions',
 
   assert.deepEqual(record.knowledge.sourceIds, REFERENCE_BASIS.sourceIds);
   assert.ok(REFERENCE_BASIS.sourceIds.length > 0);
+  const referenceIds = new Set(REFERENCES.map((reference) => reference.id));
+  assert.ok(REFERENCE_BASIS.sourceIds.every((sourceId) => referenceIds.has(sourceId)));
 });
 
 test('record is plain serializable data', () => {

@@ -1,60 +1,42 @@
 import {
   calculateEngineeringModel,
+  ENGINEERING_ASSUMPTION_METADATA,
   ENGINEERING_ASSUMPTIONS,
 } from '@jaryan/shared-domain';
-import type { EngineeringInputs } from '@jaryan/shared-domain';
+import type {
+  EngineeringInputs,
+  EngineeringOutputs,
+  FieldError,
+} from '@jaryan/shared-domain';
 import { REFERENCE_BASIS } from '@jaryan/shared-knowledge';
 import type {
   CalculationAssumptionSnapshot,
   CalculationRecord,
 } from './calculation-record.ts';
 
+export type EngineeringCalculationRecord = CalculationRecord<
+  EngineeringInputs,
+  EngineeringOutputs,
+  FieldError
+>;
+
 export interface CalculateEngineeringRequest {
   readonly projectId: string;
   readonly inputs: EngineeringInputs;
 }
 
-interface AssumptionSpec {
-  readonly key: keyof typeof ENGINEERING_ASSUMPTIONS;
-  readonly id: string;
-  readonly unit?: string;
-}
-
-const ASSUMPTION_SPEC: readonly AssumptionSpec[] = [
-  { key: 'solarPerformanceRatio', id: 'solar-performance-ratio' },
-  { key: 'batteryUsableDepth', id: 'battery-usable-depth' },
-  {
-    key: 'batteryRoundTripEfficiency',
-    id: 'battery-round-trip-efficiency',
-  },
-  {
-    key: 'waterUsePerPersonL',
-    id: 'water-use-per-person',
-    unit: 'L/person/day',
-  },
-  { key: 'minimumPracticalTankL', id: 'minimum-practical-tank', unit: 'L' },
-  { key: 'modulePowerDensityWm2', id: 'module-power-density', unit: 'W/m²' },
-  {
-    key: 'roofInstallationFootprintFactor',
-    id: 'roof-installation-footprint-factor',
-  },
-  {
-    key: 'groundInstallationFootprintFactor',
-    id: 'ground-installation-footprint-factor',
-  },
-];
-
 function snapshotAssumptions(): CalculationAssumptionSnapshot[] {
-  return ASSUMPTION_SPEC.map(({ key, id, unit }) =>
-    unit === undefined
-      ? { id, value: ENGINEERING_ASSUMPTIONS[key] }
-      : { id, value: ENGINEERING_ASSUMPTIONS[key], unit },
-  );
+  return ENGINEERING_ASSUMPTION_METADATA.map(({ key, id, unit, sourceId }) => ({
+    id,
+    value: ENGINEERING_ASSUMPTIONS[key],
+    ...(unit === undefined ? {} : { unit }),
+    ...(sourceId === undefined ? {} : { sourceId }),
+  }));
 }
 
 export function calculateEngineering(
   request: CalculateEngineeringRequest,
-): CalculationRecord {
+): EngineeringCalculationRecord {
   const id = crypto.randomUUID();
   const calculatedAt = new Date().toISOString();
   const result = calculateEngineeringModel(request.inputs);
@@ -66,7 +48,7 @@ export function calculateEngineering(
       system: request.inputs.structuralSystem,
       inputs: request.inputs,
       outputs: null,
-      assumptions: [],
+      assumptions: snapshotAssumptions(),
       errors: result.errors,
       status: 'failed',
       knowledge: { sourceIds: REFERENCE_BASIS.sourceIds },
