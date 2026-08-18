@@ -25,6 +25,7 @@ export interface PrimitiveResult {
   readonly formula: string;
   readonly sourceIds: readonly string[];
   readonly inputs: Record<string, PrimitiveInput>;
+  readonly assumptions: readonly string[];
   readonly result: { readonly value: number; readonly unit: string };
   readonly capacity?: { readonly value: number; readonly unit: string };
   readonly utilization?: number;
@@ -61,6 +62,10 @@ export function rowWeightPrimitive(inputs: {
       densityKgM3: { value: inputs.densityKgM3, unit: 'kg/m³' },
       gravity: { value: GRAVITY_M_S2, unit: 'm/s²' },
     },
+    assumptions: [
+      'Homogeneous compacted density per row.',
+      'Uniform gravitational acceleration g = 9.81 m/s².',
+    ],
     result: { value: round3(weightKn), unit: 'kN' },
     status: 'OK',
     confidence: 'HIGH',
@@ -80,6 +85,10 @@ export function accumulatedWeightPrimitive(rows: readonly WeightedRow[]): Primit
     inputs: {
       rowCount: { value: rows.length, unit: '—' },
     },
+    assumptions: [
+      'Row weights are additive; no load redistribution between rows.',
+      'Self weight acts vertically through the dome axis.',
+    ],
     result: { value: round3(totalKn), unit: 'kN' },
     status: 'OK',
     confidence: 'HIGH',
@@ -104,6 +113,10 @@ export function centerOfGravityPrimitive(rows: readonly WeightedRow[]): Primitiv
     inputs: {
       totalWeightKn: { value: round3(totalKn), unit: 'kN' },
     },
+    assumptions: [
+      'Row mass is lumped at each row center elevation.',
+      'Axisymmetric dome; horizontal mass distribution is centered on the axis.',
+    ],
     result: { value: round4(cgM), unit: 'm' },
     status: 'OK',
     confidence: 'HIGH',
@@ -133,6 +146,10 @@ export function kernLimitsPrimitive(inputs: {
     inputs: {
       dimensionM: { value: inputs.dimensionM, unit: 'm' },
     },
+    assumptions: [
+      'Linear elastic homogeneous section.',
+      'Kern limits bound the eccentricity without net tension.',
+    ],
     result: { value: round4(eccentricityM), unit: 'm' },
     status: 'OK',
     confidence: 'HIGH',
@@ -156,6 +173,10 @@ export function effectiveContactAreaPrimitive(inputs: {
       perimeterM: { value: inputs.perimeterM, unit: 'm' },
       contactWidthM: { value: inputs.contactWidthM, unit: 'm' },
     },
+    assumptions: [
+      'Contact band is a full ring of width equal to the bag width at each row.',
+      'Effective contact width is an assumption until validated by assembly tests (SA-CAN-2016).',
+    ],
     result: { value: round4(areaM2), unit: 'm²' },
     status: 'UNVERIFIED',
     confidence: 'LOW',
@@ -182,6 +203,10 @@ export function verticalStressPrimitive(inputs: {
       forceKn: { value: inputs.forceKn, unit: 'kN' },
       areaM2: { value: inputs.areaM2, unit: 'm²' },
     },
+    assumptions: [
+      'Vertical stress is uniformly distributed over the horizontal contact area.',
+      'No stress concentration at the bag-to-bag contact.',
+    ],
     result: { value: round2(stressKpa), unit: 'kPa' },
     status: 'OK',
     confidence: 'HIGH',
@@ -220,6 +245,11 @@ export function membraneForcesPrimitive(inputs: {
       surfaceLoadPa: { value: inputs.surfaceLoadPa, unit: 'Pa' },
       thicknessM: { value: inputs.thicknessM, unit: 'm' },
     },
+    assumptions: [
+      'Thin continuous shell under uniform vertical surface load.',
+      'Membrane (no bending) stress state; crown meridional/hoop symmetry.',
+      'Applicability to the thick layered SuperAdobe assembly is unverified.',
+    ],
     result: {
       value: round2(meridionalStressPa / 1000),
       unit: 'kPa',
@@ -260,6 +290,10 @@ export function compressionCheckPrimitive(inputs: {
           ? { value: Number.NaN, unit: 'kPa' }
           : { value: inputs.allowableCompressiveKpa, unit: 'kPa' },
     },
+    assumptions: [
+      'Axial stress is uniformly distributed over the contact section.',
+      'Demand/capacity comparison requires a validated allowable compressive capacity of the stabilized earthbag assembly.',
+    ],
     result: { value: round3(inputs.axialStressKpa), unit: 'kPa' },
     ...(utilization === undefined
       ? {}
@@ -302,6 +336,10 @@ export function shearCheckPrimitive(inputs: {
           ? { value: Number.NaN, unit: 'kPa' }
           : { value: inputs.allowableShearKpa, unit: 'kPa' },
     },
+    assumptions: [
+      'Joint shear is uniform over the interface.',
+      'Demand/capacity comparison requires a validated allowable joint shear capacity of the bag/soil/wire interface.',
+    ],
     result: { value: round3(inputs.shearStressKpa), unit: 'kPa' },
     ...(utilization === undefined
       ? {}
@@ -350,6 +388,11 @@ export function slidingCheckPrimitive(inputs: {
           ? { value: Number.NaN, unit: '—' }
           : { value: inputs.frictionCoefficient, unit: '—' },
     },
+    assumptions: [
+      'Sliding resistance is pure Coulomb friction μ·N at the base interface.',
+      'No interlock, adhesion, or barbed-wire contribution to sliding resistance.',
+      'Friction coefficient must be characterized for the specific soil/wire assembly.',
+    ],
     result: { value: round3(inputs.lateralForceKn), unit: 'kN' },
     ...(capacityKn === undefined
       ? {}
@@ -392,6 +435,11 @@ export function overturningCheckPrimitive(inputs: {
           ? { value: Number.NaN, unit: 'kN·m' }
           : { value: inputs.resistingMomentKnM, unit: 'kN·m' },
     },
+    assumptions: [
+      'Rigid-body overturning about the base outer edge.',
+      'Resisting moment is derived from structural weight only; no base anchorage.',
+      'Rigid ring-base behavior for the SuperAdobe assembly is unverified.',
+    ],
     result: { value: round3(inputs.overturningMomentKnM), unit: 'kN·m' },
     ...(utilization === undefined
       ? {}
@@ -435,6 +483,10 @@ export function rolloverCheckPrimitive(inputs: {
           ? { value: Number.NaN, unit: 'kN·m' }
           : { value: inputs.destabilizingMomentKnM, unit: 'kN·m' },
     },
+    assumptions: [
+      'Local course rotation occurs about the outer course edge.',
+      'Methodology for SuperAdobe local rollover is unverified (SA-CAN-2016).',
+    ],
     result: { value: round3(inputs.stabilizingMomentKnM), unit: 'kN·m' },
     ...(utilization === undefined
       ? {}
@@ -457,6 +509,7 @@ export function localStabilityCheckPrimitive(): PrimitiveResult {
     formula: 'Not specified',
     sourceIds: [],
     inputs: {},
+    assumptions: ['No capacity assumption is made; methodology pending validation.'],
     result: { value: Number.NaN, unit: '—' },
     status: 'UNVERIFIED',
     confidence: 'UNKNOWN',
@@ -475,6 +528,7 @@ export function globalStabilityCheckPrimitive(): PrimitiveResult {
     formula: 'Not specified',
     sourceIds: [],
     inputs: {},
+    assumptions: ['No capacity assumption is made; methodology pending validation.'],
     result: { value: Number.NaN, unit: '—' },
     status: 'UNVERIFIED',
     confidence: 'UNKNOWN',

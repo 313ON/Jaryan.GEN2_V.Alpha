@@ -47,6 +47,7 @@ function linkFor(
     formula: primitive.formula,
     sourceIds: primitive.sourceIds,
     inputIds,
+    assumptions: primitive.assumptions,
     validationStatus: primitive.validationStatus,
     confidence: primitive.confidence,
     reviewRequirement: primitive.review.reviewRequirement,

@@ -116,3 +116,27 @@ test('rollover, local and global stability remain explicitly unverified framewor
   assert.equal(globalStabilityCheckPrimitive().status, 'UNVERIFIED');
   assert.equal(globalStabilityCheckPrimitive().review.reviewRequirement, 'HUMAN_REVIEW_REQUIRED');
 });
+
+test('every primitive exposes explicit assumptions as part of the calculation contract', () => {
+  const primitives = [
+    rowWeightPrimitive({ volumeM3: 1, densityKgM3: 2000 }),
+    accumulatedWeightPrimitive([{ weightKn: 10, elevationM: 0 }]),
+    centerOfGravityPrimitive([{ weightKn: 10, elevationM: 0 }]),
+    kernLimitsPrimitive({ section: 'rectangle', dimensionM: 0.6 }),
+    effectiveContactAreaPrimitive({ perimeterM: 20, contactWidthM: 0.45 }),
+    verticalStressPrimitive({ forceKn: 19.62, areaM2: 1 }),
+    membraneForcesPrimitive({ sphereRadiusM: 3.05, phiRad: 0, surfaceLoadPa: 1000, thicknessM: 0.4 }),
+    compressionCheckPrimitive({ axialStressKpa: 100, allowableCompressiveKpa: undefined }),
+    shearCheckPrimitive({ shearStressKpa: 10, allowableShearKpa: undefined }),
+    slidingCheckPrimitive({ lateralForceKn: 10, normalForceKn: 20, frictionCoefficient: undefined }),
+    overturningCheckPrimitive({ overturningMomentKnM: 10, resistingMomentKnM: undefined }),
+    rolloverCheckPrimitive({ stabilizingMomentKnM: 100, destabilizingMomentKnM: undefined }),
+    localStabilityCheckPrimitive(),
+    globalStabilityCheckPrimitive(),
+  ];
+
+  for (const primitive of primitives) {
+    assert.ok(Array.isArray(primitive.assumptions), primitive.calculationId);
+    assert.ok(primitive.assumptions.length > 0, primitive.calculationId);
+  }
+});

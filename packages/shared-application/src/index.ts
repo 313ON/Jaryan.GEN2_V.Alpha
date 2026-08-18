@@ -7,3 +7,8 @@ export * from './derive-structural-quantities.ts';
 export * from './traceability.ts';
 export * from './calculate-superadobe-geometry.ts';
 export * from './verify-superadobe-structure.ts';
+export * from './superadobe-solver.ts';
+export * from './scenario.ts';
+export * from './sa-bench-001.ts';
+export * from './result-provenance.ts';
+export * from './benchmark-registry.ts';

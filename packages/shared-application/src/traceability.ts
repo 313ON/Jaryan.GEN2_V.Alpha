@@ -6,6 +6,7 @@ export interface TraceabilityLink {
   readonly formula: string;
   readonly sourceIds: readonly string[];
   readonly inputs: readonly string[];
+  readonly assumptions: readonly string[];
   readonly validationStatus: ValidationStatus;
   readonly confidence: ConfidenceLevel;
   readonly reviewRequirement: string;
@@ -22,6 +23,7 @@ export function buildTraceabilityLink(inputs: {
   readonly formula: string;
   readonly sourceIds: readonly string[];
   readonly inputIds: readonly string[];
+  readonly assumptions: readonly string[];
   readonly validationStatus: ValidationStatus;
   readonly confidence: ConfidenceLevel;
   readonly reviewRequirement: string;
@@ -32,6 +34,7 @@ export function buildTraceabilityLink(inputs: {
     formula: inputs.formula,
     sourceIds: [...inputs.sourceIds],
     inputs: [...inputs.inputIds],
+    assumptions: [...inputs.assumptions],
     validationStatus: inputs.validationStatus,
     confidence: inputs.confidence,
     reviewRequirement: inputs.reviewRequirement,
