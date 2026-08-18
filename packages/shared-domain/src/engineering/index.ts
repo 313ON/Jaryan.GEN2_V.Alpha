@@ -16,5 +16,7 @@ export * from './engineering-result.ts';
 export * from './engineering-pipeline.ts';
 export * from './artifact-identity.ts';
 export * from './calculation-registry.ts';
+export * from './legacy-artifact-identity.ts';
+export * from './content-fingerprint.ts';
 export * from './dependency-graph.ts';
 export * from './impact-analysis.ts';

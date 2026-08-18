@@ -21,8 +21,11 @@ export const ENGINEERING_ARTIFACT_TYPE_PREFIXES: Record<EngineeringArtifactType,
   BENCHMARK: 'BENCH',
 };
 
+export const ENGINEERING_ARTIFACT_VERSION_PATTERN = '^[0-9]+(\\.[0-9]+)*$';
+
 export interface EngineeringArtifactIdentity {
   readonly id: string;
+  readonly baseId: string;
   readonly type: EngineeringArtifactType;
   readonly name: string;
   readonly version: string;
@@ -58,20 +61,60 @@ export function engineeringArtifactId(
   return `${prefix}-${normalizedSystem}-${normalizedSlug}-${paddedSequence}`;
 }
 
+export function engineeringArtifactVersionedId(
+  type: EngineeringArtifactType,
+  systemCode: string,
+  slug: string,
+  sequence: number,
+  version: string,
+): string {
+  return `${engineeringArtifactId(
+    type,
+    systemCode,
+    slug,
+    sequence,
+  )}-v${version}`;
+}
+
+export function engineeringArtifactVersionOf(
+  baseId: string,
+  version: string,
+): string {
+  return `${baseId}-v${version}`;
+}
+
 export function engineeringArtifactIdentity(
   input: EngineeringArtifactIdentityInput,
 ): EngineeringArtifactIdentity {
+  const normalized: EngineeringArtifactIdentityInput = {
+    ...input,
+    systemCode: input.systemCode.toUpperCase(),
+    slug: input.slug.toUpperCase(),
+  };
+  const errors = validateEngineeringArtifactIdentityInput(normalized);
+  if (errors.length > 0) {
+    throw new Error(
+      `Invalid engineering artifact identity: ${errors.join('; ')}`,
+    );
+  }
   return {
-    id: engineeringArtifactId(
-      input.type,
-      input.systemCode,
-      input.slug,
-      input.sequence,
+    id: engineeringArtifactVersionedId(
+      normalized.type,
+      normalized.systemCode,
+      normalized.slug,
+      normalized.sequence,
+      normalized.version,
     ),
-    type: input.type,
-    name: input.name,
-    version: input.version,
-    metadata: { ...input.metadata },
+    baseId: engineeringArtifactId(
+      normalized.type,
+      normalized.systemCode,
+      normalized.slug,
+      normalized.sequence,
+    ),
+    type: normalized.type,
+    name: normalized.name,
+    version: normalized.version,
+    metadata: { ...normalized.metadata },
   };
 }
 
@@ -100,6 +143,11 @@ export function validateEngineeringArtifactIdentityInput(
   }
   if (input.version.length === 0) {
     errors.push('Version must not be empty.');
+  }
+  if (!new RegExp(ENGINEERING_ARTIFACT_VERSION_PATTERN).test(input.version)) {
+    errors.push(
+      'Version must match ^[0-9]+(\\.[0-9]+)*$ (numeric, dot-separated).',
+    );
   }
   return errors;
 }

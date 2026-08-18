@@ -15,22 +15,21 @@ export function createEngineeringDependencyGraph(
   nodes: readonly string[] = [],
   edges: readonly EngineeringDependencyEdge[] = [],
 ): EngineeringDependencyGraph {
-  const uniqueNodes = [...new Set(nodes)];
-  const uniqueEdges: EngineeringDependencyEdge[] = [];
+  let graph: EngineeringDependencyGraph = {
+    nodes: [...new Set(nodes)],
+    edges: [],
+    version: ENGINEERING_DEPENDENCY_GRAPH_VERSION,
+  };
   for (const edge of edges) {
-    const alreadyPresent = uniqueEdges.some(
+    const alreadyPresent = graph.edges.some(
       (existing) =>
         existing.fromId === edge.fromId && existing.toId === edge.toId,
     );
     if (!alreadyPresent) {
-      uniqueEdges.push(edge);
+      graph = addDependency(graph, edge.fromId, edge.toId);
     }
   }
-  return {
-    nodes: uniqueNodes,
-    edges: uniqueEdges,
-    version: ENGINEERING_DEPENDENCY_GRAPH_VERSION,
-  };
+  return graph;
 }
 
 export function addNode(
@@ -43,11 +42,27 @@ export function addNode(
   return { ...graph, nodes: [...graph.nodes, nodeId] };
 }
 
+export function wouldCreateCycle(
+  graph: EngineeringDependencyGraph,
+  fromId: string,
+  toId: string,
+): boolean {
+  if (fromId === toId) {
+    return true;
+  }
+  return canReach(graph, toId, fromId);
+}
+
 export function addDependency(
   graph: EngineeringDependencyGraph,
   fromId: string,
   toId: string,
 ): EngineeringDependencyGraph {
+  if (wouldCreateCycle(graph, fromId, toId)) {
+    throw new Error(
+      `Dependency edge ${fromId} -> ${toId} would create a cycle and was rejected.`,
+    );
+  }
   const withNodes = addNode(addNode(graph, fromId), toId);
   const alreadyPresent = withNodes.edges.some(
     (edge) => edge.fromId === fromId && edge.toId === toId,
@@ -84,9 +99,37 @@ export function directDependentsOf(
 export function serializeEngineeringDependencyGraph(
   graph: EngineeringDependencyGraph,
 ): string {
+  const nodes = [...graph.nodes].sort();
+  const edges = [...graph.edges]
+    .map((edge) => ({ fromId: edge.fromId, toId: edge.toId }))
+    .sort(
+      (a, b) =>
+        a.fromId.localeCompare(b.fromId) || a.toId.localeCompare(b.toId),
+    );
   return JSON.stringify({
-    nodes: [...graph.nodes],
-    edges: [...graph.edges],
+    nodes,
+    edges,
     version: graph.version,
   });
+}
+
+function canReach(
+  graph: EngineeringDependencyGraph,
+  startId: string,
+  targetId: string,
+): boolean {
+  const stack = [...directDependenciesOf(graph, startId)];
+  const visited = new Set<string>([startId]);
+  while (stack.length > 0) {
+    const current = stack.pop() as string;
+    if (current === targetId) {
+      return true;
+    }
+    if (visited.has(current)) {
+      continue;
+    }
+    visited.add(current);
+    stack.push(...directDependenciesOf(graph, current));
+  }
+  return false;
 }

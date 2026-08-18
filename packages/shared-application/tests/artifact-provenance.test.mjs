@@ -38,11 +38,12 @@ test('artifact identities connect the result, calculation, primitive, assumption
   assert.ok(chain);
 
   assert.equal(chain.result.identity.type, 'RESULT');
-  assert.equal(chain.result.identity.id, 'RESULT-SA-ROW-WEIGHT-001');
+  assert.equal(chain.result.identity.id, 'RESULT-SA-ROW-WEIGHT-001-v1');
+  assert.equal(chain.result.identity.baseId, 'RESULT-SA-ROW-WEIGHT-001');
   assert.equal(chain.calculation.identity.type, 'CALCULATION');
-  assert.equal(chain.calculation.identity.id, 'CALC-SA-ROW-WEIGHT-001');
+  assert.equal(chain.calculation.identity.id, 'CALC-SA-ROW-WEIGHT-001-v1');
   assert.equal(chain.primitive.identity.type, 'PRIMITIVE');
-  assert.equal(chain.primitive.identity.id, 'PRIM-SA-ROW-WEIGHT-001');
+  assert.equal(chain.primitive.identity.id, 'PRIM-SA-ROW-WEIGHT-001-v1');
   assert.ok(chain.assumptions.length > 0);
   assert.equal(chain.assumptions[0].text.length > 0, true);
   assert.ok(chain.sources.length > 0);

@@ -1,5 +1,10 @@
 import type { ConfidenceLevel } from './validation.ts';
 import type { PrimitiveResult } from './structural-primitives.ts';
+import { calculationContentFingerprint } from './content-fingerprint.ts';
+import {
+  engineeringCalculationIdentityFromLegacyId,
+  engineeringResultIdentityFromLegacyId,
+} from './legacy-artifact-identity.ts';
 
 export type EngineeringResultStatus =
   | 'CALCULATED'
@@ -16,6 +21,8 @@ export const ENGINEERING_RESULT_STATUSES: readonly EngineeringResultStatus[] = [
 
 export interface EngineeringCalculationResult {
   readonly id: string;
+  readonly identityId: string;
+  readonly contentFingerprint: string;
   readonly value: number;
   readonly unit: string;
   readonly status: EngineeringResultStatus;
@@ -27,7 +34,9 @@ export interface EngineeringCalculationResult {
 
 export function toEngineeringCalculationResult(
   primitive: PrimitiveResult,
+  options: { readonly version?: string } = {},
 ): EngineeringCalculationResult {
+  const version = options.version ?? '1';
   let status = mapEngineeringResultStatus(primitive);
   if (
     status === 'SOURCE_VALIDATED' &&
@@ -35,8 +44,26 @@ export function toEngineeringCalculationResult(
   ) {
     status = 'UNVERIFIED';
   }
+  const calculationIdentity = engineeringCalculationIdentityFromLegacyId(
+    primitive.calculationId,
+    version,
+  );
+  const resultIdentity = engineeringResultIdentityFromLegacyId(
+    primitive.calculationId,
+    version,
+  );
+  const identityId = resultIdentity?.id ?? primitive.calculationId;
+  const contentFingerprint = calculationContentFingerprint({
+    definition: calculationIdentity?.baseId ?? primitive.calculationId,
+    version,
+    formula: primitive.formula,
+    assumptions: [...primitive.assumptions],
+    inputs: primitive.inputs,
+  });
   return {
     id: primitive.calculationId,
+    identityId,
+    contentFingerprint,
     value: primitive.result.value,
     unit: primitive.result.unit,
     status,
@@ -50,7 +77,7 @@ export function toEngineeringCalculationResult(
 export function engineeringCalculationResultsFrom(
   primitives: readonly PrimitiveResult[],
 ): readonly EngineeringCalculationResult[] {
-  return primitives.map(toEngineeringCalculationResult);
+  return primitives.map((primitive) => toEngineeringCalculationResult(primitive));
 }
 
 export function serializeEngineeringCalculationResult(

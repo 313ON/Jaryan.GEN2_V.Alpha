@@ -1,5 +1,7 @@
 import type { ConfidenceLevel, ValidationStatus } from '@jaryan/shared-domain';
 
+export type SourceRequirement = 'REQUIRED' | 'OPTIONAL';
+
 export interface TraceabilityLink {
   readonly calculationId: string;
   readonly method: string;
@@ -10,6 +12,7 @@ export interface TraceabilityLink {
   readonly validationStatus: ValidationStatus;
   readonly confidence: ConfidenceLevel;
   readonly reviewRequirement: string;
+  readonly sourceRequirement: SourceRequirement;
 }
 
 export interface TraceabilityBundle {
@@ -27,6 +30,7 @@ export function buildTraceabilityLink(inputs: {
   readonly validationStatus: ValidationStatus;
   readonly confidence: ConfidenceLevel;
   readonly reviewRequirement: string;
+  readonly sourceRequirement?: SourceRequirement;
 }): TraceabilityLink {
   return {
     calculationId: inputs.calculationId,
@@ -38,5 +42,6 @@ export function buildTraceabilityLink(inputs: {
     validationStatus: inputs.validationStatus,
     confidence: inputs.confidence,
     reviewRequirement: inputs.reviewRequirement,
+    sourceRequirement: inputs.sourceRequirement ?? 'OPTIONAL',
   };
 }

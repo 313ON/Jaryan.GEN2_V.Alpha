@@ -100,3 +100,54 @@ test('statuses enumerate the canonical engineering result states', () => {
     'REVIEW_REQUIRED',
   ]);
 });
+
+test('identical engineering results have identical fingerprints', () => {
+  const first = toEngineeringCalculationResult(
+    rowWeightPrimitive({ volumeM3: 1, densityKgM3: 2000 }),
+  );
+  const second = toEngineeringCalculationResult(
+    rowWeightPrimitive({ volumeM3: 1, densityKgM3: 2000 }),
+  );
+  assert.equal(first.contentFingerprint, second.contentFingerprint);
+  assert.equal(first.identityId, second.identityId);
+});
+
+test('changed inputs change the content fingerprint', () => {
+  const baseline = toEngineeringCalculationResult(
+    rowWeightPrimitive({ volumeM3: 1, densityKgM3: 2000 }),
+  );
+  const changed = toEngineeringCalculationResult(
+    rowWeightPrimitive({ volumeM3: 2, densityKgM3: 2000 }),
+  );
+  assert.notEqual(baseline.contentFingerprint, changed.contentFingerprint);
+});
+
+test('changed version changes the content fingerprint', () => {
+  const v1 = toEngineeringCalculationResult(
+    rowWeightPrimitive({ volumeM3: 1, densityKgM3: 2000 }),
+    { version: '1' },
+  );
+  const v2 = toEngineeringCalculationResult(
+    rowWeightPrimitive({ volumeM3: 1, densityKgM3: 2000 }),
+    { version: '2' },
+  );
+  assert.notEqual(v1.contentFingerprint, v2.contentFingerprint);
+});
+
+test('results carry a canonical artifact identity reference and fingerprint', () => {
+  const result = toEngineeringCalculationResult(
+    rowWeightPrimitive({ volumeM3: 1, densityKgM3: 2000 }),
+  );
+  assert.equal(result.identityId, 'RESULT-SA-ROW-WEIGHT-001-v1');
+  assert.match(result.contentFingerprint, /^[0-9a-f]{64}$/);
+});
+
+test('result fingerprints contain no timestamps or random values', () => {
+  const build = () =>
+    toEngineeringCalculationResult(
+      rowWeightPrimitive({ volumeM3: 1, densityKgM3: 2000 }),
+    );
+  assert.deepEqual(build(), build());
+  assert.ok(!build().contentFingerprint.includes('T'));
+  assert.ok(!build().contentFingerprint.includes('Z'));
+});

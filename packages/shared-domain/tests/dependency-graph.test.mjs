@@ -7,6 +7,7 @@ import {
   directDependenciesOf,
   directDependentsOf,
   serializeEngineeringDependencyGraph,
+  wouldCreateCycle,
 } from '@jaryan/shared-domain';
 
 test('dependency graph records directed artifact relationships', () => {
@@ -28,7 +29,7 @@ test('dependency graph records directed artifact relationships', () => {
   ]);
 });
 
-test('a chain of dependencies serializes correctly', () => {
+test('a chain of dependencies serializes canonically', () => {
   const graph = addDependency(
     addDependency(
       createEngineeringDependencyGraph(),
@@ -46,8 +47,8 @@ test('a chain of dependencies serializes correctly', () => {
   assert.equal(parsed.nodes.length, 3);
   assert.equal(parsed.edges.length, 2);
   assert.deepEqual(parsed.edges, [
-    { fromId: 'CALC-SA-WEIGHT-001', toId: 'PRIM-SA-GEOM-001' },
     { fromId: 'CALC-SA-STRESS-001', toId: 'CALC-SA-WEIGHT-001' },
+    { fromId: 'CALC-SA-WEIGHT-001', toId: 'PRIM-SA-GEOM-001' },
   ]);
 });
 
@@ -91,4 +92,77 @@ test('dependency queries are ordered deterministically', () => {
     'A-CALC-001',
     'B-CALC-002',
   ]);
+});
+
+test('serialization is canonical regardless of insertion order', () => {
+  const forward = addDependency(
+    addDependency(
+      createEngineeringDependencyGraph(),
+      'CALC-SA-STRESS-001',
+      'CALC-SA-WEIGHT-001',
+    ),
+    'CALC-SA-WEIGHT-001',
+    'PRIM-SA-GEOM-001',
+  );
+  const reversed = addDependency(
+    addDependency(
+      createEngineeringDependencyGraph(),
+      'CALC-SA-WEIGHT-001',
+      'PRIM-SA-GEOM-001',
+    ),
+    'CALC-SA-STRESS-001',
+    'CALC-SA-WEIGHT-001',
+  );
+
+  assert.equal(
+    serializeEngineeringDependencyGraph(forward),
+    serializeEngineeringDependencyGraph(reversed),
+  );
+});
+
+test('adding a dependency that creates a cycle is rejected explicitly', () => {
+  const graph = addDependency(
+    addDependency(
+      createEngineeringDependencyGraph(),
+      'CALC-SA-STRESS-001',
+      'CALC-SA-WEIGHT-001',
+    ),
+    'CALC-SA-WEIGHT-001',
+    'PRIM-SA-GEOM-001',
+  );
+
+  assert.throws(
+    () => addDependency(graph, 'PRIM-SA-GEOM-001', 'CALC-SA-STRESS-001'),
+    /cycle/,
+  );
+});
+
+test('self-referential dependencies are rejected', () => {
+  assert.throws(
+    () => addDependency(createEngineeringDependencyGraph(), 'A', 'A'),
+    /cycle/,
+  );
+});
+
+test('graph construction rejects cycles in provided edges', () => {
+  assert.throws(
+    () =>
+      createEngineeringDependencyGraph([], [
+        { fromId: 'A', toId: 'B' },
+        { fromId: 'B', toId: 'A' },
+      ]),
+    /cycle/,
+  );
+});
+
+test('cycle detection reports whether an edge would create a cycle', () => {
+  const graph = addDependency(
+    addDependency(createEngineeringDependencyGraph(), 'A', 'B'),
+    'B',
+    'C',
+  );
+
+  assert.equal(wouldCreateCycle(graph, 'A', 'B'), false);
+  assert.equal(wouldCreateCycle(graph, 'C', 'A'), true);
+  assert.equal(wouldCreateCycle(graph, 'C', 'C'), true);
 });

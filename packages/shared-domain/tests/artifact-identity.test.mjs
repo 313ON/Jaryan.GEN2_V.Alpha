@@ -3,6 +3,7 @@ import test from 'node:test';
 import {
   engineeringArtifactId,
   engineeringArtifactIdentity,
+  engineeringArtifactVersionedId,
   validateEngineeringArtifactIdentityInput,
   isEngineeringArtifactType,
   ENGINEERING_ARTIFACT_TYPES,
@@ -62,7 +63,8 @@ test('artifact identity carries type, name, version and metadata', () => {
     metadata: { unit: 'kPa' },
   });
 
-  assert.equal(identity.id, 'RESULT-SA-STRESS-001');
+  assert.equal(identity.id, 'RESULT-SA-STRESS-001-v1');
+  assert.equal(identity.baseId, 'RESULT-SA-STRESS-001');
   assert.equal(identity.type, 'RESULT');
   assert.equal(identity.name, 'Base vertical stress');
   assert.equal(identity.version, '1');
@@ -123,6 +125,74 @@ test('artifact identity is serializable', () => {
   });
   const serialized = JSON.stringify(identity);
   const parsed = JSON.parse(serialized);
-  assert.equal(parsed.id, 'PRIM-SA-GEOM-001');
+  assert.equal(parsed.id, 'PRIM-SA-GEOM-001-v1');
+  assert.equal(parsed.baseId, 'PRIM-SA-GEOM-001');
   assert.equal(parsed.type, 'PRIMITIVE');
+});
+
+test('version changes create different identities', () => {
+  const input = {
+    type: 'CALCULATION',
+    systemCode: 'SA',
+    slug: 'STRESS',
+    sequence: 1,
+    name: 'Stress check',
+  };
+  const v1 = engineeringArtifactIdentity({ ...input, version: '1' });
+  const v2 = engineeringArtifactIdentity({ ...input, version: '2' });
+
+  assert.equal(v1.id, 'CALC-SA-STRESS-001-v1');
+  assert.equal(v2.id, 'CALC-SA-STRESS-001-v2');
+  assert.notEqual(v1.id, v2.id);
+  assert.equal(v1.baseId, v2.baseId);
+});
+
+test('versioned artifact ids are deterministic and version-first-class', () => {
+  assert.equal(
+    engineeringArtifactVersionedId('CALCULATION', 'SA', 'STRESS', 1, '1'),
+    'CALC-SA-STRESS-001-v1',
+  );
+  assert.equal(
+    engineeringArtifactVersionedId('CALCULATION', 'SA', 'STRESS', 1, '2'),
+    'CALC-SA-STRESS-001-v2',
+  );
+});
+
+test('identity construction validates at construction time', () => {
+  assert.throws(
+    () =>
+      engineeringArtifactIdentity({
+        type: 'CALCULATION',
+        systemCode: 'SA',
+        slug: 'STRESS',
+        sequence: 1,
+        name: 'Stress check',
+        version: 'invalid',
+      }),
+    /Version/,
+  );
+  assert.throws(
+    () =>
+      engineeringArtifactIdentity({
+        type: 'CALCULATION',
+        systemCode: 'SA',
+        slug: 'STRESS',
+        sequence: 1,
+        name: '',
+        version: '1',
+      }),
+    /Name/,
+  );
+});
+
+test('invalid version strings are rejected with explicit issues', () => {
+  const errors = validateEngineeringArtifactIdentityInput({
+    type: 'CALCULATION',
+    systemCode: 'SA',
+    slug: 'STRESS',
+    sequence: 1,
+    name: 'Stress check',
+    version: 'v1',
+  });
+  assert.ok(errors.some((error) => error.includes('Version')));
 });

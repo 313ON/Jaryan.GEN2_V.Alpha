@@ -51,6 +51,8 @@ function linkFor(
     validationStatus: primitive.validationStatus,
     confidence: primitive.confidence,
     reviewRequirement: primitive.review.reviewRequirement,
+    sourceRequirement:
+      primitive.validationStatus === 'SOURCE_VALIDATED' ? 'REQUIRED' : 'OPTIONAL',
   });
 }
 

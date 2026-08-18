@@ -3,6 +3,7 @@ import test from 'node:test';
 import {
   createEngineeringCalculationRegistry,
   engineeringArtifactIdentity,
+  validateEngineeringCalculationEntry,
 } from '@jaryan/shared-domain';
 
 function calculationEntry(calculationId, slug, sequence) {
@@ -83,4 +84,70 @@ test('non-calculation artifact identities are rejected', () => {
 
   const registry = createEngineeringCalculationRegistry().register(sourceEntry);
   assert.deepEqual(registry.list(), []);
+});
+
+test('identity/calculation mismatches are rejected explicitly', () => {
+  const mismatched = {
+    identity: engineeringArtifactIdentity({
+      type: 'CALCULATION',
+      systemCode: 'SA',
+      slug: 'STRESS',
+      sequence: 1,
+      name: 'Stress check',
+      version: '1',
+    }),
+    calculationId: 'SA-ROW-WEIGHT-001',
+    method: 'Statics',
+    formula: 'W = ρ · V · g',
+  };
+
+  const errors = validateEngineeringCalculationEntry(mismatched);
+  assert.ok(
+    errors.some((error) => error.includes('does not match calculationId')),
+  );
+
+  const registry = createEngineeringCalculationRegistry().register(mismatched);
+  assert.deepEqual(registry.list(), []);
+
+  assert.throws(
+    () => createEngineeringCalculationRegistry().registerOrThrow(mismatched),
+    /does not match calculationId/,
+  );
+});
+
+test('inconsistent identity id versus baseId and version is rejected', () => {
+  const entry = {
+    identity: {
+      id: 'CALC-SA-ROW-WEIGHT-001',
+      baseId: 'CALC-SA-ROW-WEIGHT-001',
+      type: 'CALCULATION',
+      name: 'Row weight',
+      version: '1',
+      metadata: {},
+    },
+    calculationId: 'SA-ROW-WEIGHT-001',
+    method: 'Statics',
+    formula: 'W = ρ · V · g',
+  };
+
+  const errors = validateEngineeringCalculationEntry(entry);
+  assert.ok(errors.some((error) => error.includes('not consistent')));
+
+  const registry = createEngineeringCalculationRegistry().register(entry);
+  assert.deepEqual(registry.list(), []);
+});
+
+test('registry resolves canonical versioned and base identities', () => {
+  const registry = createEngineeringCalculationRegistry().register(
+    calculationEntry('SA-ROW-WEIGHT-001', 'ROW-WEIGHT', 1),
+  );
+
+  assert.equal(
+    registry.getByIdentity('CALC-SA-ROW-WEIGHT-001-v1')?.calculationId,
+    'SA-ROW-WEIGHT-001',
+  );
+  assert.equal(
+    registry.getByIdentity('CALC-SA-ROW-WEIGHT-001')?.calculationId,
+    'SA-ROW-WEIGHT-001',
+  );
 });

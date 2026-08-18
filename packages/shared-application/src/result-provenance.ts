@@ -1,9 +1,23 @@
 import {
-  engineeringArtifactIdentity,
+  engineeringCalculationIdentityFromLegacyId,
+  engineeringPrimitiveIdentityFromLegacyId,
+  engineeringResultIdentityFromLegacyId,
+  engineeringSourceIdentityFromSourceId,
   type EngineeringArtifactIdentity,
   type EngineeringCalculationResult,
 } from '@jaryan/shared-domain';
-import type { TraceabilityBundle, TraceabilityLink } from './traceability.ts';
+import type {
+  SourceRequirement,
+  TraceabilityBundle,
+  TraceabilityLink,
+} from './traceability.ts';
+
+export type RequiredEvidence =
+  | 'METHOD'
+  | 'FORMULA'
+  | 'INPUTS'
+  | 'ASSUMPTIONS'
+  | 'SOURCES';
 
 export interface ResultProvenance {
   readonly resultId: string;
@@ -16,6 +30,10 @@ export interface ResultProvenance {
   readonly primitiveInputs: readonly string[];
   readonly assumptions: readonly string[];
   readonly sources: readonly string[];
+  readonly sourceRequirement: SourceRequirement;
+  readonly requiredEvidence: readonly RequiredEvidence[];
+  readonly missingEvidence: readonly RequiredEvidence[];
+  readonly missingRequiredEvidence: boolean;
   readonly complete: boolean;
 }
 
@@ -29,6 +47,32 @@ export function traceResultProvenance(
   if (!link) {
     return null;
   }
+  const requiredEvidence: RequiredEvidence[] = [
+    'METHOD',
+    'FORMULA',
+    'INPUTS',
+    'ASSUMPTIONS',
+  ];
+  if (link.sourceRequirement === 'REQUIRED') {
+    requiredEvidence.push('SOURCES');
+  }
+  const missingEvidence: RequiredEvidence[] = [];
+  if (link.method.length === 0) {
+    missingEvidence.push('METHOD');
+  }
+  if (link.formula.length === 0) {
+    missingEvidence.push('FORMULA');
+  }
+  if (link.inputs.length === 0) {
+    missingEvidence.push('INPUTS');
+  }
+  if (link.assumptions.length === 0) {
+    missingEvidence.push('ASSUMPTIONS');
+  }
+  if (link.sourceRequirement === 'REQUIRED' && link.sourceIds.length === 0) {
+    missingEvidence.push('SOURCES');
+  }
+  const missingRequiredEvidence = missingEvidence.includes('SOURCES');
   return {
     resultId: result.id,
     calculation: {
@@ -40,11 +84,11 @@ export function traceResultProvenance(
     primitiveInputs: [...link.inputs],
     assumptions: [...link.assumptions],
     sources: [...link.sourceIds],
-    complete:
-      link.method.length > 0 &&
-      link.formula.length > 0 &&
-      link.assumptions.length > 0 &&
-      link.inputs.length > 0,
+    sourceRequirement: link.sourceRequirement,
+    requiredEvidence,
+    missingEvidence,
+    missingRequiredEvidence,
+    complete: missingEvidence.length === 0,
   };
 }
 
@@ -75,67 +119,25 @@ export interface EngineeringArtifactProvenanceChain {
 export function engineeringResultArtifactIdentity(
   legacyId: string,
 ): EngineeringArtifactIdentity | null {
-  const parsed = parseLegacyArtifactId(legacyId);
-  if (!parsed) {
-    return null;
-  }
-  return engineeringArtifactIdentity({
-    type: 'RESULT',
-    ...parsed,
-    name: legacyId,
-    version: '1',
-  });
+  return engineeringResultIdentityFromLegacyId(legacyId, '1');
 }
 
 export function engineeringCalculationArtifactIdentity(
   legacyId: string,
 ): EngineeringArtifactIdentity | null {
-  const parsed = parseLegacyArtifactId(legacyId);
-  if (!parsed) {
-    return null;
-  }
-  return engineeringArtifactIdentity({
-    type: 'CALCULATION',
-    ...parsed,
-    name: legacyId,
-    version: '1',
-  });
+  return engineeringCalculationIdentityFromLegacyId(legacyId, '1');
 }
 
 export function engineeringPrimitiveArtifactIdentity(
   legacyId: string,
 ): EngineeringArtifactIdentity | null {
-  const parsed = parseLegacyArtifactId(legacyId);
-  if (!parsed) {
-    return null;
-  }
-  return engineeringArtifactIdentity({
-    type: 'PRIMITIVE',
-    ...parsed,
-    name: legacyId,
-    version: '1',
-  });
+  return engineeringPrimitiveIdentityFromLegacyId(legacyId, '1');
 }
 
 export function engineeringSourceArtifactIdentity(
   sourceId: string,
 ): EngineeringArtifactIdentity {
-  const parts = sourceId.split('-');
-  const systemCode = parts[0].toUpperCase();
-  const slug = parts
-    .slice(1)
-    .join('-')
-    .toUpperCase()
-    .replace(/[^A-Z0-9-]/g, '-');
-  return engineeringArtifactIdentity({
-    type: 'SOURCE',
-    systemCode: systemCode.length > 0 ? systemCode : 'EXT',
-    slug: slug.length > 0 ? slug : 'UNKNOWN',
-    sequence: stableSequence(sourceId),
-    name: sourceId,
-    version: '1',
-    metadata: { sourceId },
-  });
+  return engineeringSourceIdentityFromSourceId(sourceId, '1');
 }
 
 export function buildEngineeringArtifactChain(
@@ -160,30 +162,4 @@ export function buildEngineeringArtifactChain(
       label: sourceId,
     })),
   };
-}
-
-function parseLegacyArtifactId(
-  legacyId: string,
-): { systemCode: string; slug: string; sequence: number } | null {
-  const parts = legacyId.split('-');
-  if (parts.length < 3) {
-    return null;
-  }
-  const sequenceText = parts[parts.length - 1];
-  if (!/^[0-9]{3}$/.test(sequenceText)) {
-    return null;
-  }
-  return {
-    systemCode: parts[0],
-    slug: parts.slice(1, -1).join('-'),
-    sequence: Number(sequenceText),
-  };
-}
-
-function stableSequence(value: string): number {
-  let hash = 0;
-  for (let index = 0; index < value.length; index += 1) {
-    hash = (hash * 31 + value.charCodeAt(index)) % 100000;
-  }
-  return (hash % 999) + 1;
 }
