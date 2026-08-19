@@ -231,14 +231,16 @@ function createState(
   const byIdentityId = new Map<string, EngineeringKnowledgePackage>();
   const byFingerprint = new Map<
     string,
-    EngineeringKnowledgePackage[]
+    readonly EngineeringKnowledgePackage[]
   >();
   const byBaseId = new Map<string, EngineeringKnowledgePackage[]>();
   for (const pkg of sorted) {
     byIdentityId.set(pkg.identity.id, pkg);
     const fingerprintList = byFingerprint.get(pkg.fingerprint) ?? [];
-    fingerprintList.push(pkg);
-    byFingerprint.set(pkg.fingerprint, fingerprintList);
+    byFingerprint.set(
+      pkg.fingerprint,
+      Object.freeze([...fingerprintList, pkg]),
+    );
     const baseList = byBaseId.get(pkg.identity.baseId) ?? [];
     baseList.push(pkg);
     byBaseId.set(pkg.identity.baseId, baseList);

@@ -261,3 +261,17 @@ test('U: packages() enumerates registered packages in canonical order', () => {
   assert.equal(Object.isFrozen(registry.packages()[0]), true);
   assert.deepEqual(createEngineeringKnowledgeRegistry().packages(), []);
 });
+
+test('V: fingerprint lookup results are immutable and preserve registry state', () => {
+  const pkg = buildPackage('1');
+  const registry = createEngineeringKnowledgeRegistry().register(pkg);
+  const matches = registry.getByFingerprint(pkg.fingerprint);
+
+  assert.equal(Object.isFrozen(matches), true);
+  assert.throws(() => matches.push(pkg), TypeError);
+  assert.deepEqual(registry.getByFingerprint(pkg.fingerprint), [pkg]);
+
+  const reRegistered = registry.register(buildPackage('1'));
+  assert.equal(reRegistered.size(), 1);
+  assert.deepEqual(reRegistered.getByFingerprint(pkg.fingerprint), [pkg]);
+});
