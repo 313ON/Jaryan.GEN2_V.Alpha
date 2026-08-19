@@ -151,3 +151,40 @@ export function validateEngineeringArtifactIdentityInput(
   }
   return errors;
 }
+
+export function validateEngineeringArtifactIdentity(
+  identity: EngineeringArtifactIdentity,
+): readonly string[] {
+  const errors: string[] = [];
+  if (!isEngineeringArtifactType(identity.type)) {
+    errors.push(`Unsupported artifact type: ${String(identity.type)}`);
+  }
+  if ((identity.name?.length ?? 0) === 0) {
+    errors.push('Name must not be empty.');
+  }
+  if ((identity.version?.length ?? 0) === 0) {
+    errors.push('Version must not be empty.');
+  }
+  if (
+    identity.version &&
+    !new RegExp(ENGINEERING_ARTIFACT_VERSION_PATTERN).test(identity.version)
+  ) {
+    errors.push(
+      'Version must match ^[0-9]+(\\.[0-9]+)*$ (numeric, dot-separated).',
+    );
+  }
+  const prefix = ENGINEERING_ARTIFACT_TYPE_PREFIXES[identity.type];
+  if (!identity.baseId?.startsWith(`${prefix}-`)) {
+    errors.push(`Base id must start with the ${prefix} type prefix.`);
+  }
+  if (!/-\d{3}$/.test(identity.baseId ?? '')) {
+    errors.push('Base id must end with a three-digit sequence.');
+  }
+  if (
+    identity.id !==
+    engineeringArtifactVersionOf(identity.baseId ?? '', identity.version ?? '')
+  ) {
+    errors.push('Id must equal the base id plus version.');
+  }
+  return errors;
+}

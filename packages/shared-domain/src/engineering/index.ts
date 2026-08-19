@@ -20,3 +20,5 @@ export * from './legacy-artifact-identity.ts';
 export * from './content-fingerprint.ts';
 export * from './dependency-graph.ts';
 export * from './impact-analysis.ts';
+export * from './evidence.ts';
+export * from './engineering-knowledge-package.ts';

@@ -5,6 +5,7 @@ import {
   engineeringSourceIdentityFromSourceId,
   type EngineeringArtifactIdentity,
   type EngineeringCalculationResult,
+  type RequiredEvidence,
 } from '@jaryan/shared-domain';
 import type {
   SourceRequirement,
@@ -12,12 +13,7 @@ import type {
   TraceabilityLink,
 } from './traceability.ts';
 
-export type RequiredEvidence =
-  | 'METHOD'
-  | 'FORMULA'
-  | 'INPUTS'
-  | 'ASSUMPTIONS'
-  | 'SOURCES';
+export type { RequiredEvidence };
 
 export interface ResultProvenance {
   readonly resultId: string;
