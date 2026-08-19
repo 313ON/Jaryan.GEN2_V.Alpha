@@ -4,6 +4,7 @@ import {
   stableSerialize,
 } from './content-fingerprint.ts';
 import {
+  engineeringArtifactLineageKey,
   type EngineeringArtifactIdentity,
   validateEngineeringArtifactIdentity,
 } from './artifact-identity.ts';
@@ -18,6 +19,7 @@ import {
 import {
   type EngineeringDependencyGraph,
   createEngineeringDependencyGraph,
+  isEngineeringDependencyGraphAcyclic,
 } from './dependency-graph.ts';
 import {
   engineeringCalculationIdentityFromLegacyId,
@@ -27,29 +29,34 @@ import {
 } from './legacy-artifact-identity.ts';
 import {
   type RequiredEvidence,
-  engineeringPrimitiveMissingEvidence,
-  engineeringPrimitiveRequiredEvidence,
+  deriveEngineeringEvidence,
 } from './evidence.ts';
+
+export const ENGINEERING_KNOWLEDGE_PACKAGE_FORMAT_VERSION = '1';
 
 export interface EngineeringKnowledgePackageDefinition {
   readonly calculationIdentity: EngineeringArtifactIdentity;
   readonly method: string;
   readonly formula: string;
   readonly assumptions: readonly string[];
-  readonly requiredEvidence: readonly RequiredEvidence[];
 }
 
-export interface EngineeringKnowledgePackageProvenance {
+export interface EngineeringKnowledgePackageProvenanceInput {
   readonly sources: readonly EngineeringArtifactIdentity[];
   readonly primitive: EngineeringArtifactIdentity;
   readonly calculation: EngineeringArtifactIdentity;
   readonly result: EngineeringArtifactIdentity;
+}
+
+export interface EngineeringKnowledgePackageProvenance
+  extends EngineeringKnowledgePackageProvenanceInput {
   readonly requiredEvidence: readonly RequiredEvidence[];
   readonly missingEvidence: readonly RequiredEvidence[];
   readonly complete: boolean;
 }
 
 export interface EngineeringKnowledgePackage {
+  readonly formatVersion: string;
   readonly identity: EngineeringArtifactIdentity;
   readonly definition: EngineeringKnowledgePackageDefinition;
   readonly inputs: Readonly<Record<string, PrimitiveInput>>;
@@ -64,60 +71,109 @@ export interface EngineeringKnowledgePackageInput {
   readonly definition: EngineeringKnowledgePackageDefinition;
   readonly inputs: Readonly<Record<string, PrimitiveInput>>;
   readonly result: EngineeringCalculationResult;
-  readonly provenance: EngineeringKnowledgePackageProvenance;
+  readonly provenance: EngineeringKnowledgePackageProvenanceInput;
   readonly dependencies?: EngineeringDependencyGraph;
+}
+
+export interface EngineeringKnowledgePackageChain {
+  readonly result: EngineeringArtifactIdentity;
+  readonly calculation: EngineeringArtifactIdentity;
+  readonly primitive: EngineeringArtifactIdentity;
+  readonly sources: readonly EngineeringArtifactIdentity[];
+}
+
+export function engineeringKnowledgePackageChainEdges(
+  chain: EngineeringKnowledgePackageChain,
+): readonly { readonly fromId: string; readonly toId: string }[] {
+  const edges: { fromId: string; toId: string }[] = [
+    { fromId: chain.result.id, toId: chain.calculation.id },
+    { fromId: chain.calculation.id, toId: chain.primitive.id },
+  ];
+  for (const source of chain.sources ?? []) {
+    edges.push({ fromId: chain.primitive.id, toId: source.id });
+  }
+  return edges;
 }
 
 export function createEngineeringKnowledgePackage(
   input: EngineeringKnowledgePackageInput,
 ): EngineeringKnowledgePackage {
-  const pkg: EngineeringKnowledgePackage = {
-    identity: { ...input.identity, metadata: { ...input.identity.metadata } },
-    definition: {
-      calculationIdentity: {
-        ...input.definition.calculationIdentity,
-        metadata: { ...input.definition.calculationIdentity.metadata },
-      },
-      method: input.definition.method,
-      formula: input.definition.formula,
-      assumptions: [...input.definition.assumptions],
-      requiredEvidence: [...input.definition.requiredEvidence],
+  const identity: EngineeringArtifactIdentity = {
+    ...input.identity,
+    metadata: { ...input.identity.metadata },
+  };
+  const definition: EngineeringKnowledgePackageDefinition = {
+    calculationIdentity: {
+      ...input.definition.calculationIdentity,
+      metadata: { ...input.definition.calculationIdentity.metadata },
     },
-    inputs: Object.fromEntries(
-      Object.entries(input.inputs).map(([key, value]) => [
-        key,
-        { value: value.value, unit: value.unit },
-      ]),
-    ),
+    method: input.definition.method,
+    formula: input.definition.formula,
+    assumptions: [...input.definition.assumptions],
+  };
+  const inputs = Object.fromEntries(
+    Object.entries(input.inputs).map(([key, value]) => [
+      key,
+      { value: value.value, unit: value.unit },
+    ]),
+  );
+  const result: EngineeringCalculationResult = {
+    ...input.result,
+    assumptions: [...input.result.assumptions],
+    sources: [...input.result.sources],
+  };
+  const provenanceInput: EngineeringKnowledgePackageProvenanceInput = {
+    sources: input.provenance.sources.map((source) => ({
+      ...source,
+      metadata: { ...source.metadata },
+    })),
+    primitive: {
+      ...input.provenance.primitive,
+      metadata: { ...input.provenance.primitive.metadata },
+    },
+    calculation: {
+      ...input.provenance.calculation,
+      metadata: { ...input.provenance.calculation.metadata },
+    },
     result: {
-      ...input.result,
-      assumptions: [...input.result.assumptions],
-      sources: [...input.result.sources],
+      ...input.provenance.result,
+      metadata: { ...input.provenance.result.metadata },
     },
+  };
+
+  const evidence = deriveEngineeringEvidence({
+    method: definition.method,
+    formula: definition.formula,
+    inputs,
+    assumptions: definition.assumptions,
+    sources: result.sources,
+    sourceRequired: result.status === 'SOURCE_VALIDATED',
+  });
+
+  const chain: EngineeringKnowledgePackageChain = {
+    result: provenanceInput.result,
+    calculation: provenanceInput.calculation,
+    primitive: provenanceInput.primitive,
+    sources: provenanceInput.sources,
+  };
+  const baseGraph = input.dependencies ?? createEngineeringDependencyGraph();
+  const dependencies = canonicalDependencyGraph(
+    mergeRequiredChain(baseGraph, chain),
+  );
+
+  const pkg: EngineeringKnowledgePackage = {
+    formatVersion: ENGINEERING_KNOWLEDGE_PACKAGE_FORMAT_VERSION,
+    identity,
+    definition,
+    inputs,
+    result,
     provenance: {
-      sources: input.provenance.sources.map((source) => ({
-        ...source,
-        metadata: { ...source.metadata },
-      })),
-      primitive: {
-        ...input.provenance.primitive,
-        metadata: { ...input.provenance.primitive.metadata },
-      },
-      calculation: {
-        ...input.provenance.calculation,
-        metadata: { ...input.provenance.calculation.metadata },
-      },
-      result: {
-        ...input.provenance.result,
-        metadata: { ...input.provenance.result.metadata },
-      },
-      requiredEvidence: [...input.provenance.requiredEvidence],
-      missingEvidence: [...input.provenance.missingEvidence],
-      complete: input.provenance.complete,
+      ...provenanceInput,
+      requiredEvidence: evidence.requiredEvidence,
+      missingEvidence: evidence.missingEvidence,
+      complete: evidence.complete,
     },
-    dependencies: input.dependencies
-      ? canonicalDependencyGraph(input.dependencies)
-      : createEngineeringDependencyGraph(),
+    dependencies,
     fingerprint: '',
   };
   const fingerprint = engineeringKnowledgePackageFingerprint(pkg);
@@ -163,8 +219,6 @@ export function createEngineeringKnowledgePackageFromPrimitive(
   const sources = primitive.sourceIds.map((sourceId) =>
     engineeringSourceIdentityFromSourceId(sourceId, version),
   );
-  const requiredEvidence = engineeringPrimitiveRequiredEvidence(primitive);
-  const missingEvidence = engineeringPrimitiveMissingEvidence(primitive);
   return createEngineeringKnowledgePackage({
     identity: resultIdentity,
     definition: {
@@ -172,7 +226,6 @@ export function createEngineeringKnowledgePackageFromPrimitive(
       method: primitive.method,
       formula: primitive.formula,
       assumptions: [...primitive.assumptions],
-      requiredEvidence,
     },
     inputs: Object.fromEntries(
       Object.entries(primitive.inputs).map(([key, value]) => [
@@ -186,9 +239,6 @@ export function createEngineeringKnowledgePackageFromPrimitive(
       primitive: primitiveIdentity,
       calculation: calculationIdentity,
       result: resultIdentity,
-      requiredEvidence,
-      missingEvidence,
-      complete: missingEvidence.length === 0,
     },
     dependencies: options.dependencies,
   });
@@ -207,6 +257,11 @@ export function validateEngineeringKnowledgePackage(
       (message) => `Identity is invalid: ${message}`,
     ),
   );
+  if (pkg.formatVersion !== ENGINEERING_KNOWLEDGE_PACKAGE_FORMAT_VERSION) {
+    errors.push(
+      `Unsupported package format version: ${String(pkg.formatVersion)}.`,
+    );
+  }
   if (!pkg.definition) {
     errors.push('Package must have a definition.');
   } else {
@@ -258,11 +313,7 @@ export function validateEngineeringKnowledgePackage(
     if (pkg.provenance.result?.id !== pkg.identity.id) {
       errors.push('Provenance result must equal the package identity.');
     }
-    validatePresentArtifactIdentity(
-      pkg.provenance.result,
-      'result',
-      errors,
-    );
+    validatePresentArtifactIdentity(pkg.provenance.result, 'result', errors);
     validatePresentArtifactIdentity(
       pkg.provenance.calculation,
       'calculation',
@@ -287,31 +338,107 @@ export function validateEngineeringKnowledgePackage(
     if (pkg.provenance.primitive?.type !== 'PRIMITIVE') {
       errors.push('Provenance primitive must be a PRIMITIVE artifact.');
     }
+
+    const identityLineage = engineeringArtifactLineageKey(pkg.identity);
+    const calculationLineage = pkg.provenance.calculation
+      ? engineeringArtifactLineageKey(pkg.provenance.calculation)
+      : null;
+    const primitiveLineage = pkg.provenance.primitive
+      ? engineeringArtifactLineageKey(pkg.provenance.primitive)
+      : null;
+    if (
+      identityLineage === null ||
+      calculationLineage === null ||
+      primitiveLineage === null
+    ) {
+      errors.push(
+        'Provenance chain identities must resolve to a canonical base lineage.',
+      );
+    } else if (
+      identityLineage !== calculationLineage ||
+      identityLineage !== primitiveLineage
+    ) {
+      errors.push(
+        'Result, calculation and primitive identities must share the same base lineage.',
+      );
+    }
+    if (
+      pkg.provenance.result?.version !== pkg.provenance.calculation?.version ||
+      pkg.provenance.result?.version !== pkg.provenance.primitive?.version ||
+      pkg.provenance.result?.version !== pkg.identity.version
+    ) {
+      errors.push(
+        'Provenance chain identities must share the same artifact version.',
+      );
+    }
+
+    const provenanceSourceIds: string[] = [];
     for (const source of pkg.provenance.sources ?? []) {
       validatePresentArtifactIdentity(source, 'source', errors);
       if (source?.type !== 'SOURCE') {
         errors.push('Provenance sources must be SOURCE artifacts.');
       }
+      const sourceId = source?.metadata?.sourceId;
+      if (typeof sourceId !== 'string' || sourceId.length === 0) {
+        errors.push(
+          'Provenance source identities must carry a resolvable sourceId in metadata.',
+        );
+      } else {
+        provenanceSourceIds.push(sourceId);
+      }
     }
-    if (pkg.provenance.complete !== true) {
-      errors.push('Provenance must mark evidence as complete.');
-    }
-    if ((pkg.provenance.missingEvidence?.length ?? 0) > 0) {
+    const resultSourceIds = [...(pkg.result?.sources ?? [])].sort();
+    const sortedProvenanceSourceIds = [...provenanceSourceIds].sort();
+    if (
+      JSON.stringify(resultSourceIds) !==
+      JSON.stringify(sortedProvenanceSourceIds)
+    ) {
       errors.push(
-        `Required evidence is incomplete; missing: ${pkg.provenance.missingEvidence.join(', ')}.`,
+        'Result sources and provenance sources must correspond one-to-one.',
       );
     }
   }
-  if (
-    pkg.definition &&
-    pkg.provenance &&
-    JSON.stringify(pkg.definition.requiredEvidence) !==
+
+  if (pkg.definition && pkg.result && pkg.provenance) {
+    const derived = deriveEngineeringEvidence({
+      method: pkg.definition.method ?? '',
+      formula: pkg.definition.formula ?? '',
+      inputs: pkg.inputs,
+      assumptions: pkg.definition.assumptions ?? [],
+      sources: pkg.result.sources ?? [],
+      sourceRequired: pkg.result.status === 'SOURCE_VALIDATED',
+    });
+    if (
+      JSON.stringify(derived.requiredEvidence) !==
       JSON.stringify(pkg.provenance.requiredEvidence)
-  ) {
-    errors.push(
-      'Definition and provenance must declare the same required evidence.',
-    );
+    ) {
+      errors.push(
+        'Provenance required evidence must match the derived evidence contract.',
+      );
+    }
+    if (
+      JSON.stringify(derived.missingEvidence) !==
+      JSON.stringify(pkg.provenance.missingEvidence)
+    ) {
+      errors.push(
+        'Provenance missing evidence must match the derived evidence contract.',
+      );
+    }
+    if (derived.complete !== pkg.provenance.complete) {
+      errors.push(
+        'Provenance completeness must match the derived evidence contract.',
+      );
+    }
+    if (derived.missingEvidence.length > 0) {
+      errors.push(
+        `Required evidence is incomplete; missing: ${derived.missingEvidence.join(', ')}.`,
+      );
+    }
+    if (derived.complete !== true) {
+      errors.push('Provenance must mark evidence as complete.');
+    }
   }
+
   if (!pkg.dependencies) {
     errors.push('Package must have a dependency graph.');
   } else {
@@ -322,6 +449,40 @@ export function validateEngineeringKnowledgePackage(
       }
       if (!nodes.has(edge.toId)) {
         errors.push(`Dependency edge toId ${edge.toId} is not a graph node.`);
+      }
+    }
+    if (!isEngineeringDependencyGraphAcyclic(pkg.dependencies)) {
+      errors.push('Dependency graph must be acyclic.');
+    }
+    if (
+      JSON.stringify(canonicalDependencyGraph(pkg.dependencies)) !==
+      JSON.stringify(pkg.dependencies)
+    ) {
+      errors.push('Dependency graph must be canonical.');
+    }
+    if (
+      pkg.provenance?.result &&
+      pkg.provenance?.calculation &&
+      pkg.provenance?.primitive
+    ) {
+      const chain: EngineeringKnowledgePackageChain = {
+        result: pkg.provenance.result,
+        calculation: pkg.provenance.calculation,
+        primitive: pkg.provenance.primitive,
+        sources: pkg.provenance.sources ?? [],
+      };
+      for (const requiredEdge of engineeringKnowledgePackageChainEdges(chain)) {
+        if (
+          !pkg.dependencies.edges.some(
+            (edge) =>
+              edge.fromId === requiredEdge.fromId &&
+              edge.toId === requiredEdge.toId,
+          )
+        ) {
+          errors.push(
+            `Dependency graph must represent the calculation chain edge ${requiredEdge.fromId} -> ${requiredEdge.toId}.`,
+          );
+        }
       }
     }
   }
@@ -335,6 +496,7 @@ export function engineeringKnowledgePackageContent(
   pkg: EngineeringKnowledgePackage,
 ): unknown {
   return {
+    formatVersion: pkg.formatVersion,
     identity: pkg.identity,
     definition: pkg.definition,
     inputs: pkg.inputs,
@@ -386,15 +548,49 @@ function validatePresentArtifactIdentity(
   );
 }
 
+function mergeRequiredChain(
+  graph: EngineeringDependencyGraph,
+  chain: EngineeringKnowledgePackageChain,
+): EngineeringDependencyGraph {
+  const nodes = [...graph.nodes];
+  const edges = graph.edges.map((edge) => ({
+    fromId: edge.fromId,
+    toId: edge.toId,
+  }));
+  for (const requiredEdge of engineeringKnowledgePackageChainEdges(chain)) {
+    if (!nodes.includes(requiredEdge.fromId)) {
+      nodes.push(requiredEdge.fromId);
+    }
+    if (!nodes.includes(requiredEdge.toId)) {
+      nodes.push(requiredEdge.toId);
+    }
+    if (
+      !edges.some(
+        (edge) =>
+          edge.fromId === requiredEdge.fromId &&
+          edge.toId === requiredEdge.toId,
+      )
+    ) {
+      edges.push({ fromId: requiredEdge.fromId, toId: requiredEdge.toId });
+    }
+  }
+  return { nodes, edges, version: graph.version };
+}
+
 function canonicalDependencyGraph(
   graph: EngineeringDependencyGraph,
 ): EngineeringDependencyGraph {
-  const nodes = [...graph.nodes].sort();
-  const edges = [...graph.edges]
-    .map((edge) => ({ fromId: edge.fromId, toId: edge.toId }))
-    .sort(
-      (a, b) =>
-        a.fromId.localeCompare(b.fromId) || a.toId.localeCompare(b.toId),
-    );
+  const nodes = [...new Set(graph.nodes)].sort();
+  const edgeSet = new Map<string, { fromId: string; toId: string }>();
+  for (const edge of graph.edges) {
+    edgeSet.set(`${edge.fromId}\u0000${edge.toId}`, {
+      fromId: edge.fromId,
+      toId: edge.toId,
+    });
+  }
+  const edges = [...edgeSet.values()].sort(
+    (a, b) =>
+      a.fromId.localeCompare(b.fromId) || a.toId.localeCompare(b.toId),
+  );
   return { nodes, edges, version: graph.version };
 }

@@ -83,6 +83,21 @@ export function engineeringArtifactVersionOf(
   return `${baseId}-v${version}`;
 }
 
+export function engineeringArtifactLineageKey(
+  identity: EngineeringArtifactIdentity,
+): string | null {
+  const prefix = ENGINEERING_ARTIFACT_TYPE_PREFIXES[identity.type];
+  const baseId = identity.baseId;
+  if (typeof baseId !== 'string' || !baseId.startsWith(`${prefix}-`)) {
+    return null;
+  }
+  const stem = baseId.slice(prefix.length + 1);
+  if (!/^[A-Z][A-Z0-9-]*-\d{3}$/.test(stem)) {
+    return null;
+  }
+  return stem;
+}
+
 export function engineeringArtifactIdentity(
   input: EngineeringArtifactIdentityInput,
 ): EngineeringArtifactIdentity {

@@ -1,4 +1,5 @@
 import {
+  deriveEngineeringEvidence,
   engineeringCalculationIdentityFromLegacyId,
   engineeringPrimitiveIdentityFromLegacyId,
   engineeringResultIdentityFromLegacyId,
@@ -43,31 +44,15 @@ export function traceResultProvenance(
   if (!link) {
     return null;
   }
-  const requiredEvidence: RequiredEvidence[] = [
-    'METHOD',
-    'FORMULA',
-    'INPUTS',
-    'ASSUMPTIONS',
-  ];
-  if (link.sourceRequirement === 'REQUIRED') {
-    requiredEvidence.push('SOURCES');
-  }
-  const missingEvidence: RequiredEvidence[] = [];
-  if (link.method.length === 0) {
-    missingEvidence.push('METHOD');
-  }
-  if (link.formula.length === 0) {
-    missingEvidence.push('FORMULA');
-  }
-  if (link.inputs.length === 0) {
-    missingEvidence.push('INPUTS');
-  }
-  if (link.assumptions.length === 0) {
-    missingEvidence.push('ASSUMPTIONS');
-  }
-  if (link.sourceRequirement === 'REQUIRED' && link.sourceIds.length === 0) {
-    missingEvidence.push('SOURCES');
-  }
+  const evidence = deriveEngineeringEvidence({
+    method: link.method,
+    formula: link.formula,
+    inputs: link.inputs,
+    assumptions: link.assumptions,
+    sources: link.sourceIds,
+    sourceRequired: link.sourceRequirement === 'REQUIRED',
+  });
+  const missingEvidence = evidence.missingEvidence;
   const missingRequiredEvidence = missingEvidence.includes('SOURCES');
   return {
     resultId: result.id,
@@ -81,10 +66,10 @@ export function traceResultProvenance(
     assumptions: [...link.assumptions],
     sources: [...link.sourceIds],
     sourceRequirement: link.sourceRequirement,
-    requiredEvidence,
+    requiredEvidence: evidence.requiredEvidence,
     missingEvidence,
     missingRequiredEvidence,
-    complete: missingEvidence.length === 0,
+    complete: evidence.complete,
   };
 }
 

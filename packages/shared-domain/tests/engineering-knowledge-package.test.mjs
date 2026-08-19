@@ -81,10 +81,18 @@ test('F: changed dependency set changes the package fingerprint', () => {
     },
   );
   assert.notEqual(baseline.fingerprint, withDependency.fingerprint);
-  assert.deepEqual(withDependency.dependencies.nodes, [
-    'PRIM-SA-ROW-WEIGHT-001-v1',
-    'RESULT-SA-ROW-WEIGHT-001-v1',
-  ]);
+  assert.ok(
+    withDependency.dependencies.nodes.includes(
+      'RESULT-SA-ROW-WEIGHT-001-v1',
+    ),
+  );
+  assert.ok(
+    withDependency.dependencies.edges.some(
+      (edge) =>
+        edge.fromId === 'RESULT-SA-ROW-WEIGHT-001-v1' &&
+        edge.toId === 'PRIM-SA-ROW-WEIGHT-001-v1',
+    ),
+  );
 });
 
 test('F2: logically-equivalent dependency graphs canonicalize identically', () => {

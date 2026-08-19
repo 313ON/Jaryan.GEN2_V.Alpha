@@ -15,8 +15,23 @@ export const REQUIRED_EVIDENCE_TYPES: readonly RequiredEvidence[] = [
   'SOURCES',
 ];
 
-export function engineeringPrimitiveRequiredEvidence(
-  primitive: PrimitiveResult,
+export interface EngineeringEvidenceInput {
+  readonly method: string;
+  readonly formula: string;
+  readonly inputs: Readonly<Record<string, unknown>> | readonly unknown[];
+  readonly assumptions: readonly string[];
+  readonly sources: readonly string[];
+  readonly sourceRequired: boolean;
+}
+
+export interface EngineeringEvidenceState {
+  readonly requiredEvidence: readonly RequiredEvidence[];
+  readonly missingEvidence: readonly RequiredEvidence[];
+  readonly complete: boolean;
+}
+
+export function deriveEngineeringRequiredEvidence(
+  input: EngineeringEvidenceInput,
 ): readonly RequiredEvidence[] {
   const evidence: RequiredEvidence[] = [
     'METHOD',
@@ -24,33 +39,80 @@ export function engineeringPrimitiveRequiredEvidence(
     'INPUTS',
     'ASSUMPTIONS',
   ];
-  if (primitive.validationStatus === 'SOURCE_VALIDATED') {
+  if (input.sourceRequired) {
     evidence.push('SOURCES');
   }
   return evidence;
 }
 
-export function engineeringPrimitiveMissingEvidence(
-  primitive: PrimitiveResult,
+export function deriveEngineeringMissingEvidence(
+  input: EngineeringEvidenceInput,
 ): readonly RequiredEvidence[] {
   const missing: RequiredEvidence[] = [];
-  if (primitive.method.length === 0) {
+  if ((input.method?.length ?? 0) === 0) {
     missing.push('METHOD');
   }
-  if (primitive.formula.length === 0) {
+  if ((input.formula?.length ?? 0) === 0) {
     missing.push('FORMULA');
   }
-  if (Object.keys(primitive.inputs).length === 0) {
+  if (!hasEvidenceInputs(input.inputs)) {
     missing.push('INPUTS');
   }
-  if (primitive.assumptions.length === 0) {
+  if ((input.assumptions?.length ?? 0) === 0) {
     missing.push('ASSUMPTIONS');
   }
-  if (
-    primitive.validationStatus === 'SOURCE_VALIDATED' &&
-    primitive.sourceIds.length === 0
-  ) {
+  if (input.sourceRequired && (input.sources?.length ?? 0) === 0) {
     missing.push('SOURCES');
   }
   return missing;
+}
+
+export function deriveEngineeringEvidence(
+  input: EngineeringEvidenceInput,
+): EngineeringEvidenceState {
+  const requiredEvidence = deriveEngineeringRequiredEvidence(input);
+  const missingEvidence = deriveEngineeringMissingEvidence(input);
+  return {
+    requiredEvidence,
+    missingEvidence,
+    complete: missingEvidence.length === 0,
+  };
+}
+
+export function engineeringPrimitiveRequiredEvidence(
+  primitive: PrimitiveResult,
+): readonly RequiredEvidence[] {
+  return deriveEngineeringRequiredEvidence(
+    engineeringEvidenceFromPrimitive(primitive),
+  );
+}
+
+export function engineeringPrimitiveMissingEvidence(
+  primitive: PrimitiveResult,
+): readonly RequiredEvidence[] {
+  return deriveEngineeringMissingEvidence(
+    engineeringEvidenceFromPrimitive(primitive),
+  );
+}
+
+function engineeringEvidenceFromPrimitive(
+  primitive: PrimitiveResult,
+): EngineeringEvidenceInput {
+  return {
+    method: primitive.method,
+    formula: primitive.formula,
+    inputs: primitive.inputs,
+    assumptions: primitive.assumptions,
+    sources: primitive.sourceIds,
+    sourceRequired: primitive.validationStatus === 'SOURCE_VALIDATED',
+  };
+}
+
+function hasEvidenceInputs(
+  inputs: Readonly<Record<string, unknown>> | readonly unknown[],
+): boolean {
+  if (Array.isArray(inputs)) {
+    return inputs.length > 0;
+  }
+  return Object.keys(inputs ?? {}).length > 0;
 }

@@ -113,6 +113,47 @@ export function serializeEngineeringDependencyGraph(
   });
 }
 
+export function isEngineeringDependencyGraphAcyclic(
+  graph: EngineeringDependencyGraph,
+): boolean {
+  const nodeSet = new Set(graph.nodes);
+  const inDegree = new Map<string, number>();
+  const adjacency = new Map<string, string[]>();
+  for (const node of nodeSet) {
+    inDegree.set(node, 0);
+    adjacency.set(node, []);
+  }
+  const seen = new Set<string>();
+  for (const edge of graph.edges) {
+    if (!nodeSet.has(edge.fromId) || !nodeSet.has(edge.toId)) {
+      continue;
+    }
+    const key = `${edge.fromId}\u0000${edge.toId}`;
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    (adjacency.get(edge.fromId) as string[]).push(edge.toId);
+    inDegree.set(edge.toId, (inDegree.get(edge.toId) as number) + 1);
+  }
+  const queue = [...nodeSet].filter(
+    (node) => (inDegree.get(node) as number) === 0,
+  );
+  let processed = 0;
+  while (queue.length > 0) {
+    const current = queue.pop() as string;
+    processed += 1;
+    for (const next of adjacency.get(current) as string[]) {
+      const degree = (inDegree.get(next) as number) - 1;
+      inDegree.set(next, degree);
+      if (degree === 0) {
+        queue.push(next);
+      }
+    }
+  }
+  return processed === nodeSet.size;
+}
+
 function canReach(
   graph: EngineeringDependencyGraph,
   startId: string,
