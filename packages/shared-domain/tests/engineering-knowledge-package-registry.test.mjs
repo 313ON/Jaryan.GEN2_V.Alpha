@@ -248,3 +248,16 @@ test('T: version comparison handles multi-component versions numerically', () =>
   assert.equal(compareEngineeringArtifactVersions('2', '10') < 0, true);
   assert.equal(compareEngineeringArtifactVersions('10', '2') > 0, true);
 });
+
+test('U: packages() enumerates registered packages in canonical order', () => {
+  const v2 = buildPackage('2');
+  const v1 = buildPackage('1');
+  const registry = createEngineeringKnowledgeRegistry().register(v2).register(v1);
+  assert.deepEqual(
+    registry.packages().map((pkg) => pkg.identity.id),
+    [versionedId('1'), versionedId('2')],
+  );
+  assert.equal(Object.isFrozen(registry.packages()), true);
+  assert.equal(Object.isFrozen(registry.packages()[0]), true);
+  assert.deepEqual(createEngineeringKnowledgeRegistry().packages(), []);
+});

@@ -53,6 +53,11 @@ export interface EngineeringKnowledgeRegistry {
   latest(baseId: string): EngineeringKnowledgePackage | null;
   contains(identityId: string): boolean;
   size(): number;
+  /**
+   * All registered packages in canonical order (sorted by versioned
+   * identity id). The returned array and every package are frozen.
+   */
+  packages(): readonly EngineeringKnowledgePackage[];
   serialize(): string;
 }
 
@@ -179,6 +184,9 @@ function buildRegistry(
     size(): number {
       return state.packages.length;
     },
+    packages(): readonly EngineeringKnowledgePackage[] {
+      return state.packages;
+    },
     serialize(): string {
       return stableSerialize(engineeringKnowledgeRegistryContent(state));
     },
@@ -235,7 +243,7 @@ function createState(
     baseList.push(pkg);
     byBaseId.set(pkg.identity.baseId, baseList);
   }
-  return { packages: sorted, byIdentityId, byFingerprint, byBaseId };
+  return { packages: Object.freeze(sorted), byIdentityId, byFingerprint, byBaseId };
 }
 
 function isIdenticalPackage(

@@ -23,3 +23,4 @@ export * from './impact-analysis.ts';
 export * from './evidence.ts';
 export * from './engineering-knowledge-package.ts';
 export * from './knowledge-package-registry.ts';
+export * from './knowledge-graph.ts';
