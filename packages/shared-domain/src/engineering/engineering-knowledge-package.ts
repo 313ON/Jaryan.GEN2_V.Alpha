@@ -11,6 +11,7 @@ import {
 import {
   type EngineeringCalculationResult,
   toEngineeringCalculationResult,
+  validateEngineeringCalculationResult,
 } from './engineering-result.ts';
 import {
   type PrimitiveInput,
@@ -31,6 +32,10 @@ import {
   type RequiredEvidence,
   deriveEngineeringEvidence,
 } from './evidence.ts';
+import {
+  type EngineeringSourceAuthority,
+  isValidEngineeringSourceReference,
+} from './source-authority.ts';
 
 export const ENGINEERING_KNOWLEDGE_PACKAGE_FORMAT_VERSION = '1';
 
@@ -291,6 +296,7 @@ export function validateEngineeringKnowledgePackage(
   if (pkg.identity.id !== pkg.result.identityId) {
     errors.push('Package identity must equal the result identity id.');
   }
+  errors.push(...validateEngineeringCalculationResult(pkg.result));
   const calculationBaseId =
     pkg.definition?.calculationIdentity?.baseId ?? '';
   const calculationVersion =
@@ -384,6 +390,11 @@ export function validateEngineeringKnowledgePackage(
           'Provenance source identities must carry a resolvable sourceId in metadata.',
         );
       } else {
+        if (!isValidEngineeringSourceReference(sourceId)) {
+          errors.push(
+            `Provenance source reference is invalid: ${sourceId}.`,
+          );
+        }
         provenanceSourceIds.push(sourceId);
       }
     }
@@ -488,6 +499,27 @@ export function validateEngineeringKnowledgePackage(
   }
   if (pkg.fingerprint !== engineeringKnowledgePackageFingerprint(pkg)) {
     errors.push('Package fingerprint does not match the package content.');
+  }
+  return errors;
+}
+
+/**
+ * Explicit registry-backed trust boundary. Structural package validation
+ * remains pure and does not imply that source references exist authoritatively.
+ */
+export function validateEngineeringKnowledgePackageAuthoritatively(
+  pkg: EngineeringKnowledgePackage,
+  authority: EngineeringSourceAuthority,
+): readonly string[] {
+  const errors = [...validateEngineeringKnowledgePackage(pkg)];
+  for (const source of pkg.provenance?.sources ?? []) {
+    const sourceId = source.metadata?.sourceId;
+    const resolution = authority.resolve(sourceId ?? '');
+    if (resolution.status !== 'RESOLVED') {
+      errors.push(
+        `Provenance source ${sourceId ?? '<missing>'} is not authoritative: ${resolution.status}.`,
+      );
+    }
   }
   return errors;
 }

@@ -31,7 +31,7 @@ test('every solver result answers what created its number', () => {
     const provenance = traceResultProvenance(result, bundle);
 
     assert.ok(provenance, `missing provenance for ${result.id}`);
-    assert.equal(provenance.resultId, result.id);
+    assert.equal(provenance.resultId, result.id.replace(/^RESULT-/, '').replace(/-v1$/, ''));
     assert.ok(provenance.calculation.method.length > 0);
     assert.ok(provenance.calculation.formula.length > 0);
     assert.equal(provenance.calculation.validationStatus, calculation.validationStatus);

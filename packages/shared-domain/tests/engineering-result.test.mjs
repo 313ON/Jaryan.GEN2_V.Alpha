@@ -16,7 +16,7 @@ test('source-validated primitive maps to a source-validated engineering result',
   const primitive = rowWeightPrimitive({ volumeM3: 1, densityKgM3: 2000 });
   const result = toEngineeringCalculationResult(primitive);
 
-  assert.equal(result.id, 'SA-ROW-WEIGHT-001');
+  assert.equal(result.id, 'RESULT-SA-ROW-WEIGHT-001-v1');
   assert.equal(result.value, 19.62);
   assert.equal(result.unit, 'kN');
   assert.equal(result.status, 'SOURCE_VALIDATED');
@@ -77,7 +77,7 @@ test('engineering results are deterministic and serializable', () => {
   assert.deepEqual(first, second);
   assert.equal(serializeEngineeringCalculationResult(first), serializeEngineeringCalculationResult(second));
   const parsed = JSON.parse(serializeEngineeringCalculationResult(first));
-  assert.equal(parsed.id, 'SA-ROW-WEIGHT-001');
+  assert.equal(parsed.id, 'RESULT-SA-ROW-WEIGHT-001-v1');
   assert.equal(parsed.value, 19.62);
 });
 
@@ -88,7 +88,7 @@ test('engineeringCalculationResultsFrom maps a primitive list in order', () => {
   ]);
 
   assert.equal(results.length, 2);
-  assert.equal(results[0].id, 'SA-ROW-WEIGHT-001');
+  assert.equal(results[0].id, 'RESULT-SA-ROW-WEIGHT-001-v1');
   assert.equal(results[1].status, 'REVIEW_REQUIRED');
 });
 

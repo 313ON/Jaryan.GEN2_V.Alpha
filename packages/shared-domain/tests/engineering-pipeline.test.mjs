@@ -49,7 +49,7 @@ test('valid input runs through the pipeline to a completed result', () => {
   assert.deepEqual(run.issues, []);
   assert.ok(run.solved);
   assert.equal(run.results.length, 1);
-  assert.equal(run.results[0].id, 'SA-ROW-WEIGHT-001');
+  assert.equal(run.results[0].id, 'RESULT-SA-ROW-WEIGHT-001-v1');
   assert.equal(run.results[0].value, 19.62);
 });
 

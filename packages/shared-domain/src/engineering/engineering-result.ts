@@ -53,6 +53,7 @@ export function toEngineeringCalculationResult(
     version,
   );
   const identityId = resultIdentity?.id ?? primitive.calculationId;
+  const id = identityId;
   const contentFingerprint = calculationContentFingerprint({
     definition: calculationIdentity?.baseId ?? primitive.calculationId,
     version,
@@ -61,7 +62,7 @@ export function toEngineeringCalculationResult(
     inputs: primitive.inputs,
   });
   return {
-    id: primitive.calculationId,
+    id,
     identityId,
     contentFingerprint,
     value: primitive.result.value,
@@ -90,6 +91,27 @@ export function isEngineeringCalculationResultValidated(
   result: EngineeringCalculationResult,
 ): boolean {
   return result.status === 'SOURCE_VALIDATED';
+}
+
+export function validateEngineeringCalculationResult(
+  result: EngineeringCalculationResult,
+): readonly string[] {
+  const errors: string[] = [];
+  if (!result || typeof result !== 'object') {
+    return ['Engineering calculation result must be provided.'];
+  }
+  if (result.id !== result.identityId) {
+    errors.push('Result id must equal the result identity id.');
+  }
+  if (
+    typeof result.identityId !== 'string' ||
+    !/^RESULT-[A-Z][A-Z0-9]*-[A-Z][A-Z0-9-]*-\d{3}-v[0-9]+(\.[0-9]+)*$/.test(
+      result.identityId,
+    )
+  ) {
+    errors.push('Result identity id must be a canonical versioned RESULT identity.');
+  }
+  return errors;
 }
 
 function mapEngineeringResultStatus(

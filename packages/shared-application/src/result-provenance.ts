@@ -39,7 +39,10 @@ export function traceResultProvenance(
   bundle: TraceabilityBundle,
 ): ResultProvenance | null {
   const link = bundle.links.find(
-    (entry) => entry.calculationId === result.id,
+    (entry) =>
+      entry.calculationId === result.id ||
+      engineeringResultIdentityFromLegacyId(entry.calculationId, '1')?.id ===
+        result.identityId,
   );
   if (!link) {
     return null;
@@ -55,7 +58,9 @@ export function traceResultProvenance(
   const missingEvidence = evidence.missingEvidence;
   const missingRequiredEvidence = missingEvidence.includes('SOURCES');
   return {
-    resultId: result.id,
+    // Preserve the existing provenance output shape: traceability bundles are
+    // keyed by legacy calculation ids even when result.id is canonical.
+    resultId: link.calculationId,
     calculation: {
       method: link.method,
       formula: link.formula,

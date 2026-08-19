@@ -427,3 +427,26 @@ export function getEngineeringSourcesByDomain(domain: string): readonly Engineer
 export function hasEngineeringSource(sourceId: string): boolean {
   return SOURCE_INDEX.has(sourceId);
 }
+
+/** Adapter from the authoritative source registry to the domain-owned port. */
+export const engineeringSourceAuthority: EngineeringSourceAuthority = Object.freeze({
+  resolve(reference: EngineeringSourceReference): EngineeringSourceResolution {
+    if (!isValidEngineeringSourceReference(reference)) {
+      return { reference, status: 'INVALID', sourceId: null };
+    }
+    const sourceId = sourceIdFromEngineeringSourceReference(reference) as string;
+    const source = getEngineeringSource(sourceId);
+    return source
+      ? { reference, status: 'RESOLVED', sourceId }
+      : { reference, status: 'NOT_FOUND', sourceId };
+  },
+});
+import type {
+  EngineeringSourceAuthority,
+  EngineeringSourceReference,
+  EngineeringSourceResolution,
+} from '@jaryan/shared-domain';
+import {
+  isValidEngineeringSourceReference,
+  sourceIdFromEngineeringSourceReference,
+} from '@jaryan/shared-domain';
