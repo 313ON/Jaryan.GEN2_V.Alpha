@@ -19,15 +19,17 @@ import {
   type MountingMode,
   type NumericInputField,
   type SoilType,
-} from '@jaryan/shared-domain';
+} from '@jaryan/shared-domain/src/engineering/engineering.ts';
 import {
   BASIS_STATUSES,
+  STUDY_BASIS,
+} from '@jaryan/shared-knowledge/src/claims/study-basis.ts';
+import { REFERENCE_BASIS } from '@jaryan/shared-knowledge/src/claims/reference-basis.ts';
+import {
   HARDCODED_ASSUMPTIONS,
   MODEL_BOUNDARY,
-  REFERENCE_BASIS,
-  REFERENCES,
-  STUDY_BASIS,
-} from '@jaryan/shared-knowledge';
+} from '@jaryan/shared-knowledge/src/assumptions/model-assumptions.ts';
+import { REFERENCES } from '@jaryan/shared-knowledge/src/sources/references.ts';
 
 const SiteMap = dynamic(() => import('./SiteMap'), {
   ssr: false,
