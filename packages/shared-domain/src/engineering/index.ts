@@ -28,3 +28,4 @@ export * from './source-authority.ts';
 export * from './authority-evidence.ts';
 export * from './engineering-knowledge-reconstruction.ts';
 export * from './knowledge-trust.ts';
+export * from './semantic-backbone.ts';
