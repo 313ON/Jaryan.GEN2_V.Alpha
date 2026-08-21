@@ -13,19 +13,37 @@ const buildPackage = () =>
     rowWeightPrimitive({ volumeM3: 1, densityKgM3: 2000 }),
   );
 
-const authority = (overrides = {}) => ({
-  authorityId: 'test-authority',
-  authorityRevision: '2026-08-21.r1',
-  revisionContext: 'VALID',
-  resolutionStatus: 'RESOLVED',
-  factsValid: true,
-  stale: false,
-  conflicting: false,
-  sourceStatus: 'ACTIVE',
-  applicabilitySatisfied: true,
-  claimSupportSatisfied: true,
-  ...overrides,
-});
+const authority = (overrides = {}) => {
+  const {
+    revisionContext = 'VALID',
+    ...facts
+  } = {
+    authorityId: 'test-authority',
+    authorityRevision: '2026-08-21.r1',
+    resolutionStatus: 'RESOLVED',
+    factsValid: true,
+    stale: false,
+    conflicting: false,
+    sourceStatus: 'ACTIVE',
+    applicabilitySatisfied: true,
+    claimSupportSatisfied: true,
+    ...overrides,
+  };
+  return {
+    resolve(request) {
+      return {
+        ...facts,
+        revisionTrustContext: {
+          evidenceId: 'test-evidence-001',
+          authorityId: facts.authorityId,
+          authorityRevision: facts.authorityRevision,
+          subjectFingerprint: request.subjectFingerprint,
+          status: revisionContext,
+        },
+      };
+    },
+  };
+};
 
 const policy = (overrides = {}) => ({
   policyId: 'production-trust',
@@ -59,6 +77,56 @@ test('valid authority, complete evidence, and valid policy produce TRUSTED', () 
     policyRevision: '2026-08-21.r1',
     reasons: ['TRUST_GRANTED'],
   });
+});
+
+test('a fabricated VALID revision field without the evidence provider cannot become TRUSTED', () => {
+  const result = evaluateEngineeringKnowledgeTrust({
+    package: buildPackage(),
+    authorityEvidenceProvider: null,
+    authorityFacts: {
+      authorityId: 'fabricated',
+      authorityRevision: '2026-08-21.r1',
+      revisionContext: 'VALID',
+    },
+    evidenceComplete: true,
+    policy: policy(),
+  });
+  assert.equal(result.trustStatus, 'NOT_ELIGIBLE');
+  assert.deepEqual(result.reasons, ['AUTHORITY_UNASSESSED']);
+});
+
+test('missing and malformed authority evidence are rejected', () => {
+  const pkg = buildPackage();
+  const missing = evaluateEngineeringKnowledgeTrust({
+    package: pkg,
+    authorityEvidenceProvider: { resolve: () => null },
+    evidenceComplete: true,
+    policy: policy(),
+  });
+  assert.equal(missing.trustStatus, 'NOT_ELIGIBLE');
+  assert.deepEqual(missing.reasons, ['AUTHORITY_UNASSESSED']);
+
+  const malformed = evaluateEngineeringKnowledgeTrust({
+    package: pkg,
+    authorityEvidenceProvider: {
+      resolve: () => ({
+        authorityId: 'test-authority',
+        authorityRevision: '2026-08-21.r1',
+        resolutionStatus: 'RESOLVED',
+        factsValid: true,
+        stale: false,
+        conflicting: false,
+        sourceStatus: 'ACTIVE',
+        applicabilitySatisfied: true,
+        claimSupportSatisfied: true,
+        revisionTrustContext: null,
+      }),
+    },
+    evidenceComplete: true,
+    policy: policy(),
+  });
+  assert.equal(malformed.trustStatus, 'REJECTED');
+  assert.deepEqual(malformed.reasons, ['AUTHORITY_REVISION_INVALID']);
 });
 
 test('structurally invalid package cannot become trusted', () => {
@@ -319,6 +387,27 @@ test('different authority revisions produce distinct trust contexts', () => {
   assert.equal(r1.authorityRevision, '2024-01-01.r1');
   assert.equal(r2.authorityRevision, '2024-06-15.r3');
   assert.notDeepEqual(r1, r2);
+});
+
+test('authority evidence and revision identity are bound to the evaluated package', () => {
+  const pkg = buildPackage();
+  const evidence = authority();
+  const mismatched = evaluateEngineeringKnowledgeTrust({
+    package: pkg,
+    authorityEvidenceProvider: {
+      resolve() {
+        return {
+          ...evidence.resolve({ subjectFingerprint: 'different-package' }),
+        };
+      },
+    },
+    evidenceComplete: true,
+    policy: policy(),
+  });
+  assert.equal(mismatched.trustStatus, 'STALE');
+  assert.deepEqual(mismatched.reasons, [
+    'AUTHORITY_REVISION_INCOMPATIBLE',
+  ]);
 });
 
 test('different policy revisions produce distinct trust contexts', () => {

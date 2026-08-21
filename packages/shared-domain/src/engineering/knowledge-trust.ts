@@ -8,8 +8,21 @@ import type {
   EngineeringResultStatus,
 } from './engineering-result.ts';
 import type {
-  EngineeringSourceResolutionStatus,
-} from './source-authority.ts';
+  AuthorityEvidence,
+  AuthorityEvidenceProvider,
+  AuthoritySourceStatus,
+  RevisionTrustContextStatus,
+} from './authority-evidence.ts';
+export type {
+  AuthorityEvidence,
+  AuthorityEvidenceProvider,
+  AuthorityEvidenceRequest,
+  RevisionTrustContext,
+} from './authority-evidence.ts';
+export type {
+  AuthoritySourceStatus,
+  RevisionTrustContextStatus,
+} from './authority-evidence.ts';
 
 export type StructuralStatus =
   | 'STRUCTURALLY_INVALID'
@@ -32,19 +45,7 @@ export type TrustStatus =
   | 'STALE'
   | 'REVOKED';
 
-export type RevisionContextStatus =
-  | 'VALID'
-  | 'INVALID'
-  | 'INCOMPATIBLE';
-
-export type AuthoritySourceStatus =
-  | 'ACTIVE'
-  | 'SUPERSEDED'
-  | 'DRAFT'
-  | 'REFERENCE_ONLY'
-  | 'EXPERIMENTAL'
-  | 'SITE_SPECIFIC'
-  | 'UNKNOWN';
+export type RevisionContextStatus = RevisionTrustContextStatus;
 
 export type TrustReasonCode =
   | 'STRUCTURAL_INVALID'
@@ -89,18 +90,7 @@ export const TRUST_REASON_CODES: readonly TrustReasonCode[] = [
   'TRUST_GRANTED',
 ];
 
-export interface AuthorityFacts {
-  readonly authorityId: string;
-  readonly authorityRevision: string;
-  readonly revisionContext: RevisionContextStatus;
-  readonly resolutionStatus: EngineeringSourceResolutionStatus;
-  readonly factsValid: boolean;
-  readonly stale: boolean;
-  readonly conflicting: boolean;
-  readonly sourceStatus: AuthoritySourceStatus | null;
-  readonly applicabilitySatisfied: boolean;
-  readonly claimSupportSatisfied: boolean;
-}
+export type AuthorityFacts = AuthorityEvidence;
 
 export interface TrustPolicy {
   readonly policyId: string;
@@ -115,7 +105,7 @@ export interface TrustPolicy {
 
 export interface TrustEvaluationInput {
   readonly package: EngineeringKnowledgePackage;
-  readonly authorityFacts: AuthorityFacts | null;
+  readonly authorityEvidenceProvider: AuthorityEvidenceProvider | null;
   readonly evidenceComplete: boolean;
   readonly policy: TrustPolicy;
   readonly revoked?: boolean;
@@ -135,7 +125,16 @@ export interface TrustEvaluationResult {
 export function evaluateEngineeringKnowledgeTrust(
   input: TrustEvaluationInput,
 ): TrustEvaluationResult {
-  const authority = input.authorityFacts;
+  const legacyProvider = (
+    input as TrustEvaluationInput & {
+      readonly authorityFacts?: AuthorityEvidenceProvider | null;
+    }
+  ).authorityFacts;
+  const provider = input.authorityEvidenceProvider ?? legacyProvider;
+  const authority =
+    isAuthorityEvidenceProvider(provider)
+      ? provider.resolve({ subjectFingerprint: input.package.fingerprint })
+      : null;
   const policy = input.policy;
   const structuralErrors = validateEngineeringKnowledgePackage(input.package);
   const structuralStatus: StructuralStatus =
@@ -160,7 +159,11 @@ export function evaluateEngineeringKnowledgeTrust(
     });
   }
 
-  const revisionReason = revisionContextReason(authority, policy);
+  const revisionReason = revisionContextReason(
+    authority,
+    policy,
+    input.package.fingerprint,
+  );
   if (revisionReason !== null) {
     return freezeResult({
       ...identity,
@@ -246,7 +249,7 @@ export function evaluateEngineeringKnowledgeTrust(
 }
 
 function deriveAuthorityStatus(
-  authority: AuthorityFacts | null,
+  authority: AuthorityEvidence | null,
 ): AuthorityStatus {
   if (authority === null) {
     return 'UNASSESSED';
@@ -254,7 +257,7 @@ function deriveAuthorityStatus(
   if (
     !authority.factsValid ||
     !hasAuthorityIdentity(authority) ||
-    authority.revisionContext === 'INVALID'
+    !hasValidRevisionTrustContext(authority)
   ) {
     return 'INVALID_FACTS';
   }
@@ -268,17 +271,27 @@ function deriveAuthorityStatus(
 }
 
 function revisionContextReason(
-  authority: AuthorityFacts | null,
+  authority: AuthorityEvidence | null,
   policy: TrustPolicy,
+  subjectFingerprint: string,
 ): TrustReasonCode | null {
   if (authority !== null) {
+    if (!hasText(authority.authorityId)) {
+      return null;
+    }
     if (!hasText(authority.authorityRevision)) {
       return 'AUTHORITY_REVISION_INVALID';
     }
-    if (authority.revisionContext === 'INVALID') {
+    if (!hasValidRevisionTrustContext(authority)) {
       return 'AUTHORITY_REVISION_INVALID';
     }
-    if (authority.revisionContext === 'INCOMPATIBLE') {
+    if (
+      authority.revisionTrustContext.status === 'INCOMPATIBLE' ||
+      authority.revisionTrustContext.subjectFingerprint !== subjectFingerprint ||
+      authority.revisionTrustContext.authorityId !== authority.authorityId ||
+      authority.revisionTrustContext.authorityRevision !==
+        authority.authorityRevision
+    ) {
       return 'AUTHORITY_REVISION_INCOMPATIBLE';
     }
   }
@@ -296,7 +309,7 @@ function hasText(value: unknown): value is string {
 }
 
 function authorityReasonCode(
-  authority: AuthorityFacts | null,
+  authority: AuthorityEvidence | null,
   status: AuthorityStatus,
 ): TrustReasonCode | null {
   if (authority === null) {
@@ -326,12 +339,37 @@ function authorityReasonCode(
   return null;
 }
 
-function hasAuthorityIdentity(authority: AuthorityFacts): boolean {
+function hasAuthorityIdentity(authority: AuthorityEvidence): boolean {
   return (
     typeof authority.authorityId === 'string' &&
     authority.authorityId.trim().length > 0 &&
     typeof authority.authorityRevision === 'string' &&
     authority.authorityRevision.trim().length > 0
+  );
+}
+
+function hasValidRevisionTrustContext(
+  authority: AuthorityEvidence,
+): boolean {
+  const context = authority.revisionTrustContext;
+  return (
+    context !== null &&
+    typeof context === 'object' &&
+    hasText(context.evidenceId) &&
+    context.status !== 'INVALID' &&
+    hasText(context.authorityId) &&
+    hasText(context.authorityRevision) &&
+    hasText(context.subjectFingerprint)
+  );
+}
+
+function isAuthorityEvidenceProvider(
+  value: unknown,
+): value is AuthorityEvidenceProvider {
+  return (
+    value !== null &&
+    typeof value === 'object' &&
+    typeof (value as AuthorityEvidenceProvider).resolve === 'function'
   );
 }
 

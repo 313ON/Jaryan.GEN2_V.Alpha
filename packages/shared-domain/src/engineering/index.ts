@@ -25,5 +25,6 @@ export * from './engineering-knowledge-package.ts';
 export * from './knowledge-package-registry.ts';
 export * from './knowledge-graph.ts';
 export * from './source-authority.ts';
+export * from './authority-evidence.ts';
 export * from './engineering-knowledge-reconstruction.ts';
 export * from './knowledge-trust.ts';
