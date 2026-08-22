@@ -440,14 +440,27 @@ export function engineeringKnowledgeGraphFingerprint(
  */
 export function reconstructEngineeringRelationship(
   registry: EngineeringKnowledgeRegistry,
+  graph: ResolvedEngineeringKnowledgeGraph,
   fact: Parameters<typeof reconstructRelationship>[0],
-  declarations: readonly RelationshipDeclaration[],
   queryContext: RelationshipQueryContext,
   evidenceAdapter?: Parameters<typeof reconstructRelationship>[4],
 ): RelationshipReconstruction {
+  const canonicalDeclarations = canonicalizeRelationshipDeclarations(
+    graph.declarations ?? [],
+  );
+  if (
+    canonicalDeclarations.length !== (graph.declarations ?? []).length ||
+    canonicalDeclarations.some(
+      (declaration, index) =>
+        declaration.fingerprint !== graph.declarations?.[index]?.fingerprint,
+    ) ||
+    graph.fingerprint !== engineeringKnowledgeGraphFingerprint(graph)
+  ) {
+    throw new Error('Invalid resolved KnowledgeGraph declaration authority.');
+  }
   return reconstructRelationship(
     fact,
-    declarations,
+    canonicalDeclarations,
     (reference) => resolveEngineeringArtifactReference(registry, reference).status,
     queryContext,
     evidenceAdapter,

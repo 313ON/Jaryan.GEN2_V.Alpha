@@ -467,16 +467,7 @@ function validateReference(
       : [`${label} identityId must be non-empty.`];
   }
   if (reference.kind === 'baseId') {
-    if (typeof reference.baseId !== 'string' || reference.baseId.trim().length === 0) {
-      return [`${label} baseId must be non-empty.`];
-    }
-    if (
-      reference.version !== undefined &&
-      (typeof reference.version !== 'string' || reference.version.trim().length === 0)
-    ) {
-      return [`${label} version must be non-empty when provided.`];
-    }
-    return [];
+    return [`${label} baseId references are not canonical artifact identities.`];
   }
   return [`${label} reference kind is unsupported.`];
 }

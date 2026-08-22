@@ -63,6 +63,21 @@ const resolvedEvidence = {
   resolve: () => ({ status: 'RESOLVED', complete: true }),
 };
 
+const reconstruct = (
+  registryForQuery,
+  factValue,
+  declarations,
+  queryContext,
+  evidenceAdapter,
+) =>
+  reconstructEngineeringRelationship(
+    registryForQuery,
+    resolveEngineeringKnowledgeGraph(registryForQuery, declarations),
+    factValue,
+    queryContext,
+    evidenceAdapter,
+  );
+
 test('fact identity is ordered and predicate-sensitive', () => {
   const forward = fact(rowResult, rowCalculation);
   const reverse = fact(rowCalculation, rowResult);
@@ -145,6 +160,34 @@ test('graph canonicalizes duplicate declarations without replacing dependency be
   );
 });
 
+test('reconstruction uses only declarations registered in KnowledgeGraph', () => {
+  const candidate = declaration();
+  const graphWithoutCandidate = resolveEngineeringKnowledgeGraph(registry);
+  const unregistered = reconstructEngineeringRelationship(
+    registry,
+    graphWithoutCandidate,
+    candidate.fact,
+    { queryTime: '2026-08-22T12:00:00Z', applicabilityContext: 'PROJECT:REL' },
+    resolvedEvidence,
+  );
+  assert.equal(unregistered.status, 'UNKNOWN');
+  assert.equal(unregistered.declarations.length, 0);
+
+  const graphWithCandidate = resolveEngineeringKnowledgeGraph(registry, [candidate]);
+  const registered = reconstructEngineeringRelationship(
+    registry,
+    graphWithCandidate,
+    candidate.fact,
+    { queryTime: '2026-08-22T12:00:00Z', applicabilityContext: 'PROJECT:REL' },
+    resolvedEvidence,
+  );
+  assert.equal(registered.status, 'UNVERIFIED');
+  assert.deepEqual(
+    registered.declarations.map((item) => item.fingerprint),
+    [candidate.fingerprint],
+  );
+});
+
 test('same fact with different evidence and origin remains historically distinct', () => {
   const first = declaration();
   const second = declaration({
@@ -160,7 +203,7 @@ test('same fact with different evidence and origin remains historically distinct
 test('affirm and deny declarations reconstruct as conflict', () => {
   const affirm = declaration();
   const deny = declaration({ assertionDisposition: 'DENY', origin: 'IMPORTED', actor: null });
-  const result = reconstructEngineeringRelationship(
+  const result = reconstruct(
     registry,
     affirm.fact,
     [affirm, deny],
@@ -189,7 +232,7 @@ test('explicit supersession removes only the referenced predecessor', () => {
     },
     supersedes: [oldDeclaration.fingerprint],
   });
-  const result = reconstructEngineeringRelationship(
+  const result = reconstruct(
     registry,
     oldDeclaration.fact,
     [replacement, oldDeclaration],
@@ -213,7 +256,7 @@ test('timestamp order alone does not supersede an earlier declaration', () => {
       recordedAt: '2026-08-23T10:00:00Z',
     },
   });
-  const result = reconstructEngineeringRelationship(
+  const result = reconstruct(
     registry,
     first.fact,
     [later, first],
@@ -236,7 +279,7 @@ test('out-of-scope supersession does not suppress an eligible declaration', () =
     },
     supersedes: [current.fingerprint],
   });
-  const result = reconstructEngineeringRelationship(
+  const result = reconstruct(
     registry,
     current.fact,
     [historicalReplacement, current],
@@ -256,7 +299,7 @@ test('out-of-scope supersession does not suppress an eligible declaration', () =
 
 test('missing declarations, historical declarations, and missing evidence stay explicit', () => {
   const current = declaration();
-  const unknown = reconstructEngineeringRelationship(
+  const unknown = reconstruct(
     registry,
     current.fact,
     [],
@@ -272,7 +315,7 @@ test('missing declarations, historical declarations, and missing evidence stay e
       recordedAt: '2025-01-01T00:00:00Z',
     },
   });
-  const historicalResult = reconstructEngineeringRelationship(
+  const historicalResult = reconstruct(
     registry,
     historical.fact,
     [historical],
@@ -281,7 +324,7 @@ test('missing declarations, historical declarations, and missing evidence stay e
   );
   assert.equal(historicalResult.status, 'HISTORICAL');
 
-  const withoutEvidence = reconstructEngineeringRelationship(
+  const withoutEvidence = reconstruct(
     registry,
     current.fact,
     [declaration({ evidenceReferences: [] })],
@@ -289,7 +332,7 @@ test('missing declarations, historical declarations, and missing evidence stay e
   );
   assert.equal(withoutEvidence.status, 'INSUFFICIENT_EVIDENCE');
 
-  const unknownBoundary = reconstructEngineeringRelationship(
+  const unknownBoundary = reconstruct(
     registry,
     current.fact,
     [
@@ -313,7 +356,7 @@ test('ambiguous and invalid endpoints do not fall back', () => {
     .register(packageFixture)
     .register(rowPackage);
   const sharedSource = packageFixture.provenance.sources[0].id;
-  const ambiguous = reconstructEngineeringRelationship(
+  const ambiguous = reconstruct(
     ambiguousRegistry,
     fact(sharedSource, rowResult),
     [declaration({ fact: fact(sharedSource, rowResult) })],
@@ -323,7 +366,7 @@ test('ambiguous and invalid endpoints do not fall back', () => {
   assert.notEqual(ambiguous.status, 'RESOLVED');
 
   const invalidFact = fact('not-an-artifact-id', rowResult);
-  const invalid = reconstructEngineeringRelationship(
+  const invalid = reconstruct(
     registry,
     invalidFact,
     [declaration({ fact: invalidFact })],
@@ -338,7 +381,7 @@ test('AI proposals remain unverified without governed evidence', () => {
     origin: 'AI_PROPOSAL',
     actor: null,
   });
-  const result = reconstructEngineeringRelationship(
+  const result = reconstruct(
     registry,
     candidate.fact,
     [candidate],
@@ -349,7 +392,7 @@ test('AI proposals remain unverified without governed evidence', () => {
 });
 
 test('resolved evidence references do not establish relationship truth', () => {
-  const result = reconstructEngineeringRelationship(
+  const result = reconstruct(
     registry,
     declaration().fact,
     [declaration()],
@@ -378,4 +421,32 @@ test('AI proposals remain historical candidates without structural graph contrib
     ),
     false,
   );
+});
+
+test('baseId-only relationship endpoints are rejected as non-canonical', () => {
+  assert.throws(
+    () =>
+      relationshipFact({
+        subject: { kind: 'baseId', baseId: 'RESULT-REL-EXAMPLE-001' },
+        predicate: 'DEPENDENCY',
+        object: { kind: 'identityId', identityId: rowCalculation },
+      }),
+    /baseId references are not canonical artifact identities/,
+  );
+});
+
+test('artifact revision identities remain distinct relationship endpoints', () => {
+  const versionOne = artifact('RESULT', 'REL-VERSIONED', 1, '1');
+  const versionTwo = artifact('RESULT', 'REL-VERSIONED', 1, '2');
+  const first = relationshipFact({
+    subject: { kind: 'identity', identity: versionOne },
+    predicate: 'DEPENDENCY',
+    object: { kind: 'identityId', identityId: rowCalculation },
+  });
+  const second = relationshipFact({
+    subject: { kind: 'identity', identity: versionTwo },
+    predicate: 'DEPENDENCY',
+    object: { kind: 'identityId', identityId: rowCalculation },
+  });
+  assert.notEqual(first.fingerprint, second.fingerprint);
 });
