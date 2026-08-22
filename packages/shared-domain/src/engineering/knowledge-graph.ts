@@ -180,7 +180,8 @@ export function resolveEngineeringKnowledgeGraph(
   for (const declaration of canonicalDeclarations) {
     if (
       declaration.assertionDisposition !== 'AFFIRM' ||
-      declaration.fact.predicate !== 'DEPENDENCY'
+      declaration.fact.predicate !== 'DEPENDENCY' ||
+      declaration.origin === 'AI_PROPOSAL'
     ) {
       continue;
     }

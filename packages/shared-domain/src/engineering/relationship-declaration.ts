@@ -326,7 +326,12 @@ export function reconstructRelationship(
   }
 
   const superseded = new Set(
-    matching.flatMap((declaration) => declaration.supersedes),
+    matching
+      .filter(
+        (declaration) =>
+          temporalApplicability(declaration, queryContext) === 'APPLICABLE',
+      )
+      .flatMap((declaration) => declaration.supersedes),
   );
   const active = matching.filter(
     (declaration) => !superseded.has(declaration.fingerprint),

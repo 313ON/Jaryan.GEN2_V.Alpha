@@ -224,6 +224,36 @@ test('timestamp order alone does not supersede an earlier declaration', () => {
   assert.equal(result.declarations.length, 2);
 });
 
+test('out-of-scope supersession does not suppress an eligible declaration', () => {
+  const current = declaration();
+  const historicalReplacement = declaration({
+    origin: 'IMPORTED',
+    actor: null,
+    temporalValidity: {
+      validFrom: '2025-01-01T00:00:00Z',
+      validTo: '2025-12-31T23:59:59Z',
+      recordedAt: '2025-01-01T00:00:00Z',
+    },
+    supersedes: [current.fingerprint],
+  });
+  const result = reconstructEngineeringRelationship(
+    registry,
+    current.fact,
+    [historicalReplacement, current],
+    { queryTime: '2026-08-22T12:00:00Z', applicabilityContext: 'PROJECT:REL' },
+    resolvedEvidence,
+  );
+  assert.equal(result.status, 'UNVERIFIED');
+  assert.deepEqual(
+    result.declarations.map((item) => item.fingerprint),
+    [current.fingerprint],
+  );
+  assert.deepEqual(
+    result.historicalDeclarations.map((item) => item.fingerprint),
+    [historicalReplacement.fingerprint],
+  );
+});
+
 test('missing declarations, historical declarations, and missing evidence stay explicit', () => {
   const current = declaration();
   const unknown = reconstructEngineeringRelationship(
@@ -329,4 +359,23 @@ test('resolved evidence references do not establish relationship truth', () => {
   assert.equal(result.status, 'UNVERIFIED');
   assert.equal(result.evidence[0].status, 'RESOLVED');
   assert.equal(result.evidence[0].complete, true);
+});
+
+test('AI proposals remain historical candidates without structural graph contribution', () => {
+  const candidate = declaration({
+    fact: fact(rowCalculation, rowSource.id),
+    origin: 'AI_PROPOSAL',
+    actor: null,
+  });
+  const graph = resolveEngineeringKnowledgeGraph(registry, [candidate]);
+  assert.equal(
+    graph.declarations.some((item) => item.fingerprint === candidate.fingerprint),
+    true,
+  );
+  assert.equal(
+    graph.edges.some(
+      (edge) => edge.fromId === rowCalculation && edge.toId === rowSource.id,
+    ),
+    false,
+  );
 });
