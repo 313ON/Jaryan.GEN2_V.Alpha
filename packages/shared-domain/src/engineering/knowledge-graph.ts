@@ -14,6 +14,13 @@ import {
 import { type EngineeringImpactNode, analyzeDirectImpact } from './impact-analysis.ts';
 import type { EngineeringKnowledgePackage } from './engineering-knowledge-package.ts';
 import type { EngineeringKnowledgeRegistry } from './knowledge-package-registry.ts';
+import {
+  canonicalizeRelationshipDeclarations,
+  reconstructRelationship,
+  type RelationshipDeclaration,
+  type RelationshipQueryContext,
+  type RelationshipReconstruction,
+} from './relationship-declaration.ts';
 
 export const ENGINEERING_KNOWLEDGE_GRAPH_FORMAT_VERSION = '1';
 
@@ -32,6 +39,13 @@ export type EngineeringArtifactResolutionStatus =
   | 'AMBIGUOUS'
   | 'NOT_FOUND'
   | 'INVALID';
+
+/**
+ * The currently governed semantic relationship supported by the canonical
+ * KnowledgeGraph. Additional predicates require separately authorized
+ * endpoint and semantic contracts.
+ */
+export type EngineeringKnowledgeGraphPredicate = 'DEPENDENCY';
 
 /**
  * A resolvable reference to an engineering artifact:
@@ -66,6 +80,7 @@ export interface ResolvedEngineeringGraphNode {
 
 export interface ResolvedEngineeringGraphEdge {
   readonly fromId: string;
+  readonly predicate: EngineeringKnowledgeGraphPredicate;
   readonly toId: string;
   readonly fromStatus: EngineeringArtifactResolutionStatus;
   readonly toStatus: EngineeringArtifactResolutionStatus;
@@ -76,6 +91,12 @@ export interface ResolvedEngineeringKnowledgeGraph {
   readonly formatVersion: string;
   readonly nodes: readonly ResolvedEngineeringGraphNode[];
   readonly edges: readonly ResolvedEngineeringGraphEdge[];
+  /**
+   * Canonical historical declarations attached to this graph authority.
+   * Existing dependency edges remain compatible and are not rewritten into
+   * declarations without an explicit declaration contract.
+   */
+  readonly declarations?: readonly RelationshipDeclaration[];
   readonly acyclic: boolean;
   /** True when any edge references an unresolved artifact (an open graph). */
   readonly open: boolean;
@@ -139,6 +160,7 @@ export function resolveEngineeringArtifactReference(
  */
 export function resolveEngineeringKnowledgeGraph(
   registry: EngineeringKnowledgeRegistry,
+  declarations: readonly RelationshipDeclaration[] = [],
 ): ResolvedEngineeringKnowledgeGraph {
   const index = buildOwnershipIndex(registry);
   const nodeIds = new Set<string>();
@@ -153,6 +175,23 @@ export function resolveEngineeringKnowledgeGraph(
         toId: edge.toId,
       });
     }
+  }
+  const canonicalDeclarations = canonicalizeRelationshipDeclarations(declarations);
+  for (const declaration of canonicalDeclarations) {
+    if (
+      declaration.assertionDisposition !== 'AFFIRM' ||
+      declaration.fact.predicate !== 'DEPENDENCY'
+    ) {
+      continue;
+    }
+    const fromId = graphNodeIdOfReference(declaration.fact.subject);
+    const toId = graphNodeIdOfReference(declaration.fact.object);
+    if (fromId === null || toId === null) {
+      continue;
+    }
+    nodeIds.add(fromId);
+    nodeIds.add(toId);
+    edgeMap.set(`${fromId}\u0000${toId}`, { fromId, toId });
   }
 
   const sortedNodeIds = [...nodeIds].sort();
@@ -194,6 +233,7 @@ export function resolveEngineeringKnowledgeGraph(
       fromResolution.status === 'RESOLVED' && toResolution.status === 'RESOLVED';
     return {
       fromId: edge.fromId,
+      predicate: 'DEPENDENCY',
       toId: edge.toId,
       fromStatus: fromResolution.status,
       toStatus: toResolution.status,
@@ -209,6 +249,7 @@ export function resolveEngineeringKnowledgeGraph(
     formatVersion: ENGINEERING_KNOWLEDGE_GRAPH_FORMAT_VERSION,
     nodes,
     edges: resolvedEdges,
+    declarations: canonicalDeclarations,
     acyclic: isEngineeringDependencyGraphAcyclic(rawGraph),
     open: resolvedEdges.some((edge) => !edge.resolved),
     selfDependencies,
@@ -240,6 +281,7 @@ export function validateResolvedEngineeringKnowledgeGraph(
   }
   const nodes = Array.isArray(graph.nodes) ? graph.nodes : [];
   const edges = Array.isArray(graph.edges) ? graph.edges : [];
+  const declarations = Array.isArray(graph.declarations) ? graph.declarations : [];
   if (nodes.length === 0) {
     errors.push('Resolved graph must declare at least one node.');
   }
@@ -255,7 +297,27 @@ export function validateResolvedEngineeringKnowledgeGraph(
     errors.push('Resolved graph nodes must be sorted by id.');
   }
   const nodeSet = new Set(nodeIds);
+  const declarationFingerprints = declarations.map(
+    (declaration) => declaration.fingerprint,
+  );
+  if (
+    new Set(declarationFingerprints).size !== declarationFingerprints.length
+  ) {
+    errors.push('Resolved graph declarations must have unique fingerprints.');
+  }
+  const sortedDeclarationFingerprints = [...declarationFingerprints].sort();
+  if (
+    JSON.stringify(declarationFingerprints) !==
+    JSON.stringify(sortedDeclarationFingerprints)
+  ) {
+    errors.push('Resolved graph declarations must be sorted by fingerprint.');
+  }
   for (const edge of edges) {
+    if (edge.predicate !== 'DEPENDENCY') {
+      errors.push(
+        `Resolved graph edge ${edge.fromId} -> ${edge.toId} has unsupported predicate.`,
+      );
+    }
     if (!nodeSet.has(edge.fromId)) {
       errors.push(`Resolved graph edge fromId ${edge.fromId} is not a graph node.`);
     }
@@ -342,7 +404,7 @@ export function validateResolvedEngineeringKnowledgeGraph(
 export function engineeringKnowledgeGraphFingerprint(
   graph: Pick<
     ResolvedEngineeringKnowledgeGraph,
-    'formatVersion' | 'nodes' | 'edges'
+    'formatVersion' | 'nodes' | 'edges' | 'declarations'
   >,
 ): string {
   return contentFingerprint({
@@ -357,12 +419,38 @@ export function engineeringKnowledgeGraphFingerprint(
     })),
     edges: graph.edges.map((edge) => ({
       fromId: edge.fromId,
+      predicate: edge.predicate,
       toId: edge.toId,
       fromStatus: edge.fromStatus,
       toStatus: edge.toStatus,
       resolved: edge.resolved,
     })),
+    declarations: (graph.declarations ?? []).map((declaration) => ({
+      fingerprint: declaration.fingerprint,
+    })),
   });
+}
+
+/**
+ * Reconstructs a relationship through the canonical KnowledgeGraph
+ * authority. Endpoint resolution is structural; evidence and trust remain
+ * outside this function and are supplied only through the declaration
+ * boundary's adapter.
+ */
+export function reconstructEngineeringRelationship(
+  registry: EngineeringKnowledgeRegistry,
+  fact: Parameters<typeof reconstructRelationship>[0],
+  declarations: readonly RelationshipDeclaration[],
+  queryContext: RelationshipQueryContext,
+  evidenceAdapter?: Parameters<typeof reconstructRelationship>[4],
+): RelationshipReconstruction {
+  return reconstructRelationship(
+    fact,
+    declarations,
+    (reference) => resolveEngineeringArtifactReference(registry, reference).status,
+    queryContext,
+    evidenceAdapter,
+  );
 }
 
 /**
@@ -612,6 +700,20 @@ function parseBaseIdType(baseId: string): EngineeringArtifactType | null {
   }
   const match = ENGINEERING_ARTIFACT_BASE_ID_PATTERN.exec(baseId);
   return match ? ARTIFACT_TYPE_BY_PREFIX[match[1]] : null;
+}
+
+function graphNodeIdOfReference(
+  reference: EngineeringArtifactReference,
+): string | null {
+  if (reference.kind === 'identityId') {
+    return reference.identityId;
+  }
+  if (reference.kind === 'identity') {
+    return reference.identity.id;
+  }
+  return reference.version === undefined
+    ? reference.baseId
+    : engineeringArtifactVersionOf(reference.baseId, reference.version);
 }
 
 function deepFreeze<T>(value: T): T {
