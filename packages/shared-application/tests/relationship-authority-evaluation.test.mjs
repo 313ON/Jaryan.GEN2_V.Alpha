@@ -185,6 +185,48 @@ test('resolvable evidence can delegate to the existing authority and trust bound
   assert.deepEqual(result.evaluations[0].reasonCodes, ['TRUST_GRANTED']);
 });
 
+test('query evidence resolution is passed through without changing artifact identity', () => {
+  let resolveCalls = 0;
+  const evidenceAdapter = {
+    resolve(references) {
+      resolveCalls += 1;
+      assert.deepEqual(references.map((reference) => reference.id), [
+        sourceReference.id,
+      ]);
+      return { status: 'UNVERIFIED', complete: false };
+    },
+  };
+  const result = createEngineeringRelationshipQuery(registry, [
+    declaration(),
+  ]).evaluateAuthority(
+    fact,
+    queryContext,
+    adapter(),
+    subject,
+    evidenceAdapter,
+  );
+
+  assert.equal(resolveCalls, 1);
+  assert.equal(result.evaluations[0].evidenceResolution.status, 'UNVERIFIED');
+  assert.equal(result.evaluations[0].evidenceResolution.complete, false);
+  assert.deepEqual(
+    result.evaluations[0].evidenceReferences.map((reference) => ({
+      id: reference.id,
+      baseId: reference.baseId,
+      version: reference.version,
+    })),
+    [{
+      id: sourceReference.id,
+      baseId: sourceReference.baseId,
+      version: sourceReference.version,
+    }],
+  );
+  assert.equal(
+    result.evaluations[0].evidenceReferences[0].id,
+    sourceReference.id,
+  );
+});
+
 test('unresolved evidence blocks trust without changing structural reconstruction', () => {
   const unresolved = declaration({
     evidenceReferences: [

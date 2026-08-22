@@ -79,11 +79,14 @@ export function createEngineeringRelationshipQuery(
         evidenceAdapter,
       );
       const evaluations: RelationshipAuthorityEvaluation[] =
-        reconstruction.declarations.map((declaration) =>
+        reconstruction.declarations.map((declaration, index) =>
           authorityAdapter.evaluate({
             declaration,
             structuralStatus: reconstruction.status,
             authoritySubject,
+            evidenceResolution: evidenceAdapter
+              ? reconstruction.evidence[index]
+              : undefined,
           }),
         );
       const historicalEvaluations: RelationshipAuthorityEvaluation[] =

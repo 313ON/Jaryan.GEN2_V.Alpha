@@ -53,6 +53,7 @@ export function relationshipAuthoritySubjectReference(
 export interface RelationshipAuthorityEvaluation {
   readonly declarationFingerprint: string;
   readonly relationshipFingerprint: string;
+  readonly evidenceReferences: readonly EngineeringArtifactIdentity[];
   readonly structuralStatus: RelationshipReconstructionStatus;
   readonly evidenceReferenceCount: number;
   readonly evidenceResolution: RelationshipEvidenceResolution;
@@ -68,6 +69,12 @@ export interface RelationshipAuthorityEvaluationInput {
   readonly declaration: RelationshipDeclaration;
   readonly structuralStatus: RelationshipReconstructionStatus;
   readonly authoritySubject: RelationshipAuthoritySubjectReference | null;
+  /**
+   * Query-time evidence resolution supplied by the existing evidence
+   * authority. When omitted, the adapter retains its source-authority
+   * fallback for direct callers.
+   */
+  readonly evidenceResolution?: RelationshipEvidenceResolution;
 }
 
 export interface RelationshipAuthorityEvaluationAdapter {
@@ -89,13 +96,23 @@ export function createRelationshipAuthorityEvaluationAdapter(
     evaluate(
       input: RelationshipAuthorityEvaluationInput,
     ): RelationshipAuthorityEvaluation {
-      const evidenceResolution = resolveRelationshipEvidence(
-        input.declaration.evidenceReferences,
-        options.sourceAuthority,
-      );
+      const evidenceResolution =
+        input.evidenceResolution ??
+        resolveRelationshipEvidence(
+          input.declaration.evidenceReferences,
+          options.sourceAuthority,
+        );
       const base = {
         declarationFingerprint: input.declaration.fingerprint,
         relationshipFingerprint: input.declaration.fact.fingerprint,
+        evidenceReferences: Object.freeze(
+          input.declaration.evidenceReferences.map((reference) =>
+            Object.freeze({
+              ...reference,
+              metadata: Object.freeze({ ...reference.metadata }),
+            }),
+          ),
+        ),
         structuralStatus: input.structuralStatus,
         evidenceReferenceCount: input.declaration.evidenceReferences.length,
         evidenceResolution: Object.freeze({ ...evidenceResolution }),
