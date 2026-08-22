@@ -2,6 +2,9 @@ import {
   reconstructEngineeringRelationship,
   resolveEngineeringKnowledgeGraph,
   type EngineeringKnowledgeRegistry,
+  type EngineeringChangeEvent,
+  type EngineeringDecision,
+  type EngineeringKnowledgeGraphPredicate,
   type RelationshipEvidenceAdapter,
   type RelationshipFact,
   type RelationshipQueryContext,
@@ -31,6 +34,26 @@ export interface EngineeringRelationshipQuery {
     authoritySubject: RelationshipAuthoritySubjectReference | null,
     evidenceAdapter?: RelationshipEvidenceAdapter,
   ): RelationshipAuthorityProjection;
+  reconstructDecision(
+    decision: EngineeringDecision,
+    queryContext: RelationshipQueryContext,
+    evidenceAdapter?: RelationshipEvidenceAdapter,
+  ): EngineeringDecisionQueryResult;
+  reconstructChangeEvent(
+    changeEvent: EngineeringChangeEvent,
+    queryContext: RelationshipQueryContext,
+    evidenceAdapter?: RelationshipEvidenceAdapter,
+  ): EngineeringChangeEventQueryResult;
+}
+
+export interface EngineeringDecisionQueryResult {
+  readonly decision: EngineeringDecision;
+  readonly relationships: readonly RelationshipReconstruction[];
+}
+
+export interface EngineeringChangeEventQueryResult {
+  readonly changeEvent: EngineeringChangeEvent;
+  readonly relationships: readonly RelationshipReconstruction[];
 }
 
 /**
@@ -103,5 +126,85 @@ export function createEngineeringRelationshipQuery(
         historicalEvaluations,
       );
     },
+
+    reconstructDecision(
+      decision: EngineeringDecision,
+      queryContext: RelationshipQueryContext,
+      evidenceAdapter?: RelationshipEvidenceAdapter,
+    ): EngineeringDecisionQueryResult {
+      return Object.freeze({
+        decision,
+        relationships: Object.freeze(
+          reconstructSubjectRelationships(
+            decision.identity.id,
+            graph,
+            (fact) =>
+              reconstructEngineeringRelationship(
+                registry,
+                graph,
+                fact,
+                queryContext,
+                evidenceAdapter,
+              ),
+          ),
+        ),
+      });
+    },
+
+    reconstructChangeEvent(
+      changeEvent: EngineeringChangeEvent,
+      queryContext: RelationshipQueryContext,
+      evidenceAdapter?: RelationshipEvidenceAdapter,
+    ): EngineeringChangeEventQueryResult {
+      return Object.freeze({
+        changeEvent,
+        relationships: Object.freeze(
+          reconstructSubjectRelationships(
+            changeEvent.identity.id,
+            graph,
+            (fact) =>
+              reconstructEngineeringRelationship(
+                registry,
+                graph,
+                fact,
+                queryContext,
+                evidenceAdapter,
+              ),
+          ),
+        ),
+      });
+    },
   });
+}
+
+const DECISION_CHANGE_PREDICATES = new Set<EngineeringKnowledgeGraphPredicate>([
+  'APPLIES_TO',
+  'SUPPORTED_BY',
+  'DERIVED_FROM',
+  'AFFECTS',
+  'IMPLEMENTS',
+  'SUPERSEDES',
+]);
+
+function reconstructSubjectRelationships(
+  artifactId: string,
+  graph: ResolvedEngineeringKnowledgeGraph,
+  reconstruct: (fact: RelationshipFact) => RelationshipReconstruction,
+): readonly RelationshipReconstruction[] {
+  const facts = new Map<string, RelationshipFact>();
+  for (const declaration of graph.declarations ?? []) {
+    const subject = declaration.fact.subject;
+    if (
+      subject.kind !== 'ARTIFACT' ||
+      'identityKind' in subject.identity ||
+      subject.identity.id !== artifactId ||
+      !DECISION_CHANGE_PREDICATES.has(declaration.fact.predicate)
+    ) {
+      continue;
+    }
+    facts.set(declaration.fact.fingerprint, declaration.fact);
+  }
+  return [...facts.values()]
+    .sort((left, right) => left.fingerprint.localeCompare(right.fingerprint))
+    .map(reconstruct);
 }
