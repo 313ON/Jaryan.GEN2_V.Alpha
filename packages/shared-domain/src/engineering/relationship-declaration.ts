@@ -338,7 +338,7 @@ export function reconstructRelationship(
   if (endpointStatuses.includes('NOT_FOUND')) {
     return emptyReconstruction('UNKNOWN', fact);
   }
-  if (!isIsoTimestamp(queryContext.queryTime)) {
+  if (!validateRelationshipQueryContext(queryContext)) {
     return emptyReconstruction('INVALID', fact);
   }
 
@@ -457,6 +457,23 @@ function temporalApplicability(
     queryTime <= Date.parse(validTo)
   );
   return applicable ? 'APPLICABLE' : 'HISTORICAL';
+}
+
+function validateRelationshipQueryContext(
+  queryContext: RelationshipQueryContext,
+): boolean {
+  if (!queryContext || typeof queryContext !== 'object') {
+    return false;
+  }
+  if (!isIsoTimestamp(queryContext.queryTime)) {
+    return false;
+  }
+  return (
+    queryContext.applicabilityContext === undefined ||
+    queryContext.applicabilityContext === null ||
+    (typeof queryContext.applicabilityContext === 'string' &&
+      queryContext.applicabilityContext.trim().length > 0)
+  );
 }
 
 function emptyReconstruction(

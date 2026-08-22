@@ -607,3 +607,187 @@ test('Release B AI proposals remain declarations without structural authority', 
     false,
   );
 });
+
+test('Release B historical reconstruction filters both authorized predicates by query time', () => {
+  const describedFact = relationshipFact({
+    subject: physicalEndpoint,
+    predicate: 'DESCRIBED_BY',
+    object: rowResultEndpoint,
+  });
+  const calculatedFact = relationshipFact({
+    subject: rowResultEndpoint,
+    predicate: 'CALCULATED_FOR',
+    object: physicalEndpoint,
+  });
+  const historicalWindow = {
+    validFrom: '2025-01-01T00:00:00Z',
+    validTo: '2025-12-31T23:59:59Z',
+    recordedAt: '2025-01-01T00:00:00Z',
+  };
+  const described = declaration({
+    fact: describedFact,
+    temporalValidity: historicalWindow,
+  });
+  const calculated = declaration({
+    fact: calculatedFact,
+    temporalValidity: historicalWindow,
+  });
+
+  const describedResult = reconstruct(
+    registry,
+    describedFact,
+    [described],
+    { queryTime: '2025-06-01T00:00:00Z', applicabilityContext: 'PROJECT:REL' },
+    resolvedEvidence,
+  );
+  const calculatedResult = reconstruct(
+    registry,
+    calculatedFact,
+    [calculated],
+    { queryTime: '2025-06-01T00:00:00Z', applicabilityContext: 'PROJECT:REL' },
+    resolvedEvidence,
+  );
+  const outsideResult = reconstruct(
+    registry,
+    describedFact,
+    [described],
+    { queryTime: '2026-06-01T00:00:00Z', applicabilityContext: 'PROJECT:REL' },
+    resolvedEvidence,
+  );
+
+  assert.equal(describedResult.status, 'UNVERIFIED');
+  assert.equal(calculatedResult.status, 'UNVERIFIED');
+  assert.equal(outsideResult.status, 'HISTORICAL');
+});
+
+test('Release B temporal boundaries and unknown intervals remain explicit', () => {
+  const factValue = relationshipFact({
+    subject: physicalEndpoint,
+    predicate: 'DESCRIBED_BY',
+    object: rowResultEndpoint,
+  });
+  const bounded = declaration({
+    fact: factValue,
+    temporalValidity: {
+      validFrom: '2026-06-01T00:00:00Z',
+      validTo: '2026-06-30T23:59:59Z',
+      recordedAt: '2026-06-01T00:00:00Z',
+    },
+  });
+  const missingStart = declaration({
+    fact: factValue,
+    temporalValidity: {
+      validTo: '2026-06-30T23:59:59Z',
+      recordedAt: '2026-06-01T00:00:00Z',
+    },
+  });
+
+  const beforeStart = reconstruct(
+    registry,
+    factValue,
+    [bounded],
+    { queryTime: '2026-05-31T23:59:59Z', applicabilityContext: 'PROJECT:REL' },
+    resolvedEvidence,
+  );
+  const afterEnd = reconstruct(
+    registry,
+    factValue,
+    [bounded],
+    { queryTime: '2026-07-01T00:00:00Z', applicabilityContext: 'PROJECT:REL' },
+    resolvedEvidence,
+  );
+  const unknownBoundary = reconstruct(
+    registry,
+    factValue,
+    [missingStart],
+    { queryTime: '2026-06-15T00:00:00Z', applicabilityContext: 'PROJECT:REL' },
+    resolvedEvidence,
+  );
+
+  assert.equal(beforeStart.status, 'HISTORICAL');
+  assert.equal(afterEnd.status, 'HISTORICAL');
+  assert.equal(unknownBoundary.status, 'UNKNOWN');
+});
+
+test('Release B supersession is explicit and never inferred from newest record time', () => {
+  const factValue = relationshipFact({
+    subject: rowResultEndpoint,
+    predicate: 'CALCULATED_FOR',
+    object: physicalEndpoint,
+  });
+  const first = declaration({
+    fact: factValue,
+    temporalValidity: {
+      validFrom: '2026-01-01T00:00:00Z',
+      validTo: '2026-12-31T23:59:59Z',
+      recordedAt: '2026-01-01T00:00:00Z',
+    },
+  });
+  const laterWithoutSupersession = declaration({
+    fact: factValue,
+    origin: 'IMPORTED',
+    actor: null,
+    temporalValidity: {
+      validFrom: '2026-01-01T00:00:00Z',
+      validTo: '2026-12-31T23:59:59Z',
+      recordedAt: '2026-08-22T00:00:00Z',
+    },
+  });
+  const withoutSupersession = reconstruct(
+    registry,
+    factValue,
+    [laterWithoutSupersession, first],
+    { queryTime: '2026-08-22T12:00:00Z', applicabilityContext: 'PROJECT:REL' },
+    resolvedEvidence,
+  );
+  assert.equal(withoutSupersession.status, 'UNVERIFIED');
+  assert.deepEqual(
+    withoutSupersession.declarations.map((item) => item.fingerprint),
+    [first.fingerprint, laterWithoutSupersession.fingerprint].sort(),
+  );
+
+  const replacement = declaration({
+    fact: factValue,
+    origin: 'IMPORTED',
+    actor: null,
+    temporalValidity: {
+      validFrom: '2026-01-01T00:00:00Z',
+      validTo: '2026-12-31T23:59:59Z',
+      recordedAt: '2026-08-22T00:00:00Z',
+    },
+    supersedes: [first.fingerprint],
+  });
+  const withSupersession = reconstruct(
+    registry,
+    factValue,
+    [replacement, first],
+    { queryTime: '2026-08-22T12:00:00Z', applicabilityContext: 'PROJECT:REL' },
+    resolvedEvidence,
+  );
+
+  assert.deepEqual(
+    withSupersession.declarations.map((item) => item.fingerprint),
+    [replacement.fingerprint],
+  );
+  assert.deepEqual(
+    withSupersession.historicalDeclarations.map((item) => item.fingerprint),
+    [first.fingerprint],
+  );
+});
+
+test('invalid Release B query context remains an explicit INVALID result', () => {
+  const factValue = relationshipFact({
+    subject: physicalEndpoint,
+    predicate: 'DESCRIBED_BY',
+    object: rowResultEndpoint,
+  });
+  const result = reconstruct(
+    registry,
+    factValue,
+    [declaration({ fact: factValue })],
+    { queryTime: '2026-08-22T12:00:00Z', applicabilityContext: '   ' },
+    resolvedEvidence,
+  );
+
+  assert.equal(result.status, 'INVALID');
+});
