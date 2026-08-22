@@ -19,6 +19,11 @@ import {
   geometryReference,
   validateGeometryReference,
 } from './geometry-reference.ts';
+import {
+  type EngineeringRepresentationSemanticMetadata,
+  engineeringRepresentationSemanticMetadata,
+  validateEngineeringRepresentationSemanticMetadata,
+} from './representation-semantics.ts';
 
 export type EngineeringRelationshipPredicate =
   | 'DEPENDENCY'
@@ -67,6 +72,7 @@ export interface RelationshipDeclaration {
   readonly evidenceReferences: readonly EngineeringArtifactIdentity[];
   readonly geometryReference: GeometryReference | null;
   readonly geometryMetadata: GeometrySemanticMetadata | null;
+  readonly representationMetadata: EngineeringRepresentationSemanticMetadata | null;
   readonly supersedes: readonly string[];
   readonly fingerprint: string;
 }
@@ -74,11 +80,16 @@ export interface RelationshipDeclaration {
 export interface RelationshipDeclarationInput
   extends Omit<
     RelationshipDeclaration,
-    'fact' | 'fingerprint' | 'geometryReference' | 'geometryMetadata'
+    | 'fact'
+    | 'fingerprint'
+    | 'geometryReference'
+    | 'geometryMetadata'
+    | 'representationMetadata'
   > {
   readonly fact: RelationshipFactInput;
   readonly geometryReference?: GeometryReference | null;
   readonly geometryMetadata?: GeometrySemanticMetadata | null;
+  readonly representationMetadata?: EngineeringRepresentationSemanticMetadata | null;
 }
 
 export interface RelationshipFactInput
@@ -149,6 +160,10 @@ export function relationshipDeclaration(
     input.geometryMetadata === null || input.geometryMetadata === undefined
       ? null
       : geometrySemanticMetadata(input.geometryMetadata);
+  const representationMetadataValue =
+    input.representationMetadata === null || input.representationMetadata === undefined
+      ? null
+      : engineeringRepresentationSemanticMetadata(input.representationMetadata);
   const supersedes = canonicalStrings(input.supersedes);
   const fact = relationshipFact(input.fact);
   const declaration = {
@@ -161,6 +176,7 @@ export function relationshipDeclaration(
     evidenceReferences,
     geometryReference: geometryReferenceValue,
     geometryMetadata: geometryMetadataValue,
+    representationMetadata: representationMetadataValue,
     supersedes,
     fingerprint: relationshipDeclarationFingerprint({
       fact,
@@ -172,6 +188,7 @@ export function relationshipDeclaration(
       evidenceReferences,
       geometryReference: geometryReferenceValue,
       geometryMetadata: geometryMetadataValue,
+      representationMetadata: representationMetadataValue,
       supersedes,
     }),
   } satisfies RelationshipDeclaration;
@@ -271,6 +288,21 @@ export function validateRelationshipDeclaration(
       errors.push(...validateGeometrySemanticMetadata(input.geometryMetadata));
     }
   }
+  if (
+    input.representationMetadata !== null &&
+    input.representationMetadata !== undefined
+  ) {
+    if (input.fact.predicate !== 'REPRESENTED_BY') {
+      errors.push(
+        'Representation metadata is only valid for REPRESENTED_BY declarations.',
+      );
+    }
+    errors.push(
+      ...validateEngineeringRepresentationSemanticMetadata(
+        input.representationMetadata,
+      ),
+    );
+  }
   if (!Array.isArray(input.supersedes)) {
     errors.push('Supersedes must be an array.');
   } else {
@@ -330,6 +362,14 @@ export function relationshipDeclarationFingerprint(
       declaration.geometryMetadata,
     );
   }
+  if (
+    declaration.representationMetadata !== null &&
+    declaration.representationMetadata !== undefined
+  ) {
+    assertedContent.representationMetadata = canonicalRepresentationMetadata(
+      declaration.representationMetadata,
+    );
+  }
   return contentFingerprint(assertedContent);
 }
 
@@ -358,6 +398,7 @@ export function canonicalizeRelationshipDeclarations(
       evidenceReferences: declaration.evidenceReferences,
       geometryReference: declaration.geometryReference,
       geometryMetadata: declaration.geometryMetadata,
+      representationMetadata: declaration.representationMetadata,
       supersedes: declaration.supersedes,
     });
     if (declaration.fingerprint !== canonical.fingerprint) {
@@ -705,6 +746,15 @@ function canonicalGeometryMetadata(
       metadata.evidenceReference === null
         ? null
         : { id: metadata.evidenceReference.id },
+  };
+}
+
+function canonicalRepresentationMetadata(
+  metadata: EngineeringRepresentationSemanticMetadata,
+): Record<string, unknown> {
+  return {
+    representationKind: metadata.representationKind,
+    semanticRole: metadata.semanticRole,
   };
 }
 

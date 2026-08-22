@@ -34,3 +34,4 @@ export * from './physical-referent-identity.ts';
 export * from './semantic-references.ts';
 export * from './geometry-reference.ts';
 export * from './graph-endpoint.ts';
+export * from './representation-semantics.ts';
