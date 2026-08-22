@@ -52,7 +52,13 @@ export type EngineeringKnowledgeGraphPredicate =
   | 'DEPENDENCY'
   | 'DESCRIBED_BY'
   | 'CALCULATED_FOR'
-  | 'REPRESENTED_BY';
+  | 'REPRESENTED_BY'
+  | 'APPLIES_TO'
+  | 'SUPPORTED_BY'
+  | 'DERIVED_FROM'
+  | 'AFFECTS'
+  | 'IMPLEMENTS'
+  | 'SUPERSEDES';
 
 /**
  * A resolvable reference to an engineering artifact:

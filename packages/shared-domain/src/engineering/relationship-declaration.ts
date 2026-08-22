@@ -30,10 +30,27 @@ export type EngineeringRelationshipPredicate =
   | 'DEPENDENCY'
   | 'DESCRIBED_BY'
   | 'CALCULATED_FOR'
-  | 'REPRESENTED_BY';
+  | 'REPRESENTED_BY'
+  | 'APPLIES_TO'
+  | 'SUPPORTED_BY'
+  | 'DERIVED_FROM'
+  | 'AFFECTS'
+  | 'IMPLEMENTS'
+  | 'SUPERSEDES';
 
 export const ENGINEERING_RELATIONSHIP_PREDICATES: readonly EngineeringRelationshipPredicate[] =
-  ['DEPENDENCY', 'DESCRIBED_BY', 'CALCULATED_FOR', 'REPRESENTED_BY'];
+  [
+    'DEPENDENCY',
+    'DESCRIBED_BY',
+    'CALCULATED_FOR',
+    'REPRESENTED_BY',
+    'APPLIES_TO',
+    'SUPPORTED_BY',
+    'DERIVED_FROM',
+    'AFFECTS',
+    'IMPLEMENTS',
+    'SUPERSEDES',
+  ];
 
 export type RelationshipAssertionDisposition = 'AFFIRM' | 'DENY';
 
@@ -608,19 +625,8 @@ function validateRelationshipEndpoint(
       `${label} endpoint for ${predicate} must be a canonical KnowledgeGraph endpoint.`,
     ];
   }
-  const expectedKind =
-    predicate === 'DESCRIBED_BY'
-      ? position === 'subject'
-        ? 'PHYSICAL_REFERENT'
-        : 'ARTIFACT'
-      : predicate === 'REPRESENTED_BY'
-        ? position === 'subject'
-          ? 'PHYSICAL_REFERENT'
-          : 'ARTIFACT'
-      : position === 'subject'
-        ? 'ARTIFACT'
-        : 'PHYSICAL_REFERENT';
-  if (reference.kind !== expectedKind) {
+  const expectedKind = expectedEndpointKind(predicate, position);
+  if (expectedKind !== null && reference.kind !== expectedKind) {
     return [
       `${predicate} requires ${position} endpoint kind ${expectedKind}; received ${reference.kind}.`,
     ];
@@ -628,6 +634,27 @@ function validateRelationshipEndpoint(
   return validateKnowledgeGraphEndpoint(reference).map(
     (error) => `${label}: ${error}`,
   );
+}
+
+function expectedEndpointKind(
+  predicate: EngineeringRelationshipPredicate,
+  position: 'subject' | 'object',
+): KnowledgeGraphEndpoint['kind'] | null {
+  if (predicate === 'DESCRIBED_BY' || predicate === 'REPRESENTED_BY') {
+    return position === 'subject' ? 'PHYSICAL_REFERENT' : 'ARTIFACT';
+  }
+  if (
+    predicate === 'SUPPORTED_BY' ||
+    predicate === 'DERIVED_FROM' ||
+    predicate === 'IMPLEMENTS' ||
+    predicate === 'SUPERSEDES'
+  ) {
+    return 'ARTIFACT';
+  }
+  if (predicate === 'APPLIES_TO' || predicate === 'AFFECTS') {
+    return position === 'subject' ? 'ARTIFACT' : null;
+  }
+  return position === 'subject' ? 'ARTIFACT' : 'PHYSICAL_REFERENT';
 }
 
 function validateArtifactReference(
