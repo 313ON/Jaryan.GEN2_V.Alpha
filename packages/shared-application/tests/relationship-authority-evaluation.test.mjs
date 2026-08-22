@@ -4,10 +4,12 @@ import {
   accumulatedWeightPrimitive,
   createEngineeringKnowledgePackageFromPrimitive,
   createEngineeringKnowledgeRegistry,
+  engineeringSourceIdentityFromSourceId,
   knowledgeGraphEndpoint,
   physicalReferentIdentity,
   relationshipDeclaration,
   relationshipFact,
+  rowWeightPrimitive,
 } from '@jaryan/shared-domain';
 import {
   createEngineeringRelationshipQuery,
@@ -23,6 +25,10 @@ const packageFixture = createEngineeringKnowledgePackageFromPrimitive(
 );
 const registry = createEngineeringKnowledgeRegistry().register(packageFixture);
 const sourceReference = packageFixture.provenance.sources[0];
+const secondSourceReference = engineeringSourceIdentityFromSourceId(
+  'REL-SECOND-SOURCE',
+  '1',
+);
 const artifactEndpoint = knowledgeGraphEndpoint({
   kind: 'ARTIFACT',
   status: 'RESOLVED',
@@ -100,7 +106,8 @@ const authorityProvider = {
 
 const sourceAuthority = {
   resolve(reference) {
-    return reference.id === sourceReference.id
+    return reference.id === sourceReference.id ||
+      reference.id === secondSourceReference.id
       ? { reference, status: 'RESOLVED', sourceId: sourceReference.id }
       : { reference, status: 'NOT_FOUND', sourceId: null };
   },
@@ -302,4 +309,172 @@ test('authority projection ordering is deterministic', () => {
 
   assert.deepEqual(forward, reverse);
   assert.equal(Object.isFrozen(forward.evaluations), true);
+});
+
+test('query-facing evidence state distinguishes absent, unresolved, and resolved evidence', () => {
+  const absent = createEngineeringRelationshipQuery(registry, [
+    declaration({ evidenceReferences: [] }),
+  ]).evaluateAuthority(fact, queryContext, adapter(), subject);
+  const unresolved = createEngineeringRelationshipQuery(registry, [
+    declaration({
+      evidenceReferences: [{
+        ...sourceReference,
+        version: '999',
+        id: `${sourceReference.baseId}-v999`,
+      }],
+    }),
+  ]).evaluateAuthority(fact, queryContext, adapter(), subject);
+  const resolved = createEngineeringRelationshipQuery(registry, [
+    declaration(),
+  ]).evaluateAuthority(fact, queryContext, adapter(), subject);
+
+  assert.deepEqual(absent.evidence, {
+    presence: 'ABSENT',
+    resolution: 'UNKNOWN',
+    complete: false,
+  });
+  assert.deepEqual(unresolved.evidence, {
+    presence: 'PRESENT',
+    resolution: 'UNRESOLVED',
+    complete: false,
+  });
+  assert.deepEqual(resolved.evidence, {
+    presence: 'PRESENT',
+    resolution: 'RESOLVED',
+    complete: true,
+  });
+});
+
+test('authority and trust projections remain separate', () => {
+  const noAuthority = createEngineeringRelationshipQuery(registry, [
+    declaration(),
+  ]).evaluateAuthority(
+    fact,
+    queryContext,
+    adapter({ authorityEvidenceProvider: null }),
+    subject,
+  );
+  const policyBlocked = createEngineeringRelationshipQuery(registry, [
+    declaration(),
+  ]).evaluateAuthority(
+    fact,
+    queryContext,
+    adapter({ policy: policy({ allowedSourceStatuses: ['DRAFT'] }) }),
+    subject,
+  );
+
+  assert.deepEqual(noAuthority.authority, {
+    statuses: ['UNASSESSED'],
+    assessed: false,
+    established: false,
+  });
+  assert.deepEqual(noAuthority.trust, {
+    statuses: ['NOT_ELIGIBLE'],
+    established: false,
+  });
+  assert.deepEqual(policyBlocked.authority, {
+    statuses: ['RESOLVED'],
+    assessed: true,
+    established: true,
+  });
+  assert.deepEqual(policyBlocked.trust, {
+    statuses: ['NOT_ELIGIBLE'],
+    established: false,
+  });
+});
+
+test('conflict and historical state remain independent from evidence differences', () => {
+  const affirm = declaration();
+  const secondAffirm = declaration({
+    origin: 'HUMAN',
+    actor: 'engineer-004',
+    evidenceReferences: [secondSourceReference],
+  });
+  const deny = declaration({
+    assertionDisposition: 'DENY',
+    origin: 'HUMAN',
+    actor: 'engineer-005',
+  });
+  const historical = declaration({
+    temporalValidity: {
+      validFrom: '2025-01-01T00:00:00Z',
+      validTo: '2025-12-31T23:59:59Z',
+      recordedAt: '2025-01-01T00:00:00Z',
+    },
+  });
+  const differentEvidence = createEngineeringRelationshipQuery(registry, [
+    affirm,
+    secondAffirm,
+  ]).evaluateAuthority(fact, queryContext, adapter(), subject);
+  const conflicting = createEngineeringRelationshipQuery(registry, [
+    affirm,
+    deny,
+  ]).evaluateAuthority(fact, queryContext, adapter(), subject);
+  const historicalProjection = createEngineeringRelationshipQuery(registry, [
+    affirm,
+    historical,
+  ]).evaluateAuthority(fact, queryContext, adapter(), subject);
+
+  assert.equal(differentEvidence.conflict, false);
+  assert.equal(differentEvidence.reconstruction.status, 'UNVERIFIED');
+  assert.equal(conflicting.conflict, true);
+  assert.equal(conflicting.reconstruction.status, 'CONFLICTING');
+  assert.equal(historicalProjection.conflict, false);
+  assert.equal(historicalProjection.historical, true);
+  assert.equal(historicalProjection.historicalEvaluations.length, 1);
+});
+
+test('invalid query state keeps projection dimensions unknown without fallback', () => {
+  const projection = createEngineeringRelationshipQuery(registry, [
+    declaration(),
+  ]).evaluateAuthority(
+    fact,
+    { queryTime: 'invalid-query-time', applicabilityContext: 'PROJECT:REL' },
+    adapter(),
+    subject,
+  );
+
+  assert.equal(projection.reconstruction.status, 'INVALID');
+  assert.deepEqual(projection.evidence, {
+    presence: 'UNKNOWN',
+    resolution: 'UNKNOWN',
+    complete: false,
+  });
+  assert.deepEqual(projection.authority.statuses, []);
+  assert.deepEqual(projection.trust.statuses, []);
+  assert.equal(projection.conflict, false);
+});
+
+test('ambiguous endpoint query keeps all projection dimensions unknown', () => {
+  const secondPackage = createEngineeringKnowledgePackageFromPrimitive(
+    rowWeightPrimitive({ volumeM3: 1, densityKgM3: 2000 }),
+  );
+  const ambiguousRegistry = registry.register(secondPackage);
+  const ambiguousFact = relationshipFact({
+    subject: physicalEndpoint,
+    predicate: 'DESCRIBED_BY',
+    object: knowledgeGraphEndpoint({
+      kind: 'ARTIFACT',
+      status: 'RESOLVED',
+      identity: sourceReference,
+    }),
+  });
+  const projection = createEngineeringRelationshipQuery(
+    ambiguousRegistry,
+    [declaration({ fact: ambiguousFact })],
+  ).evaluateAuthority(
+    ambiguousFact,
+    queryContext,
+    adapter(),
+    subject,
+  );
+
+  assert.equal(projection.reconstruction.status, 'AMBIGUOUS');
+  assert.deepEqual(projection.evidence, {
+    presence: 'UNKNOWN',
+    resolution: 'UNKNOWN',
+    complete: false,
+  });
+  assert.deepEqual(projection.authority.statuses, []);
+  assert.deepEqual(projection.trust.statuses, []);
 });

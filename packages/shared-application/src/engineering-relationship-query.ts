@@ -15,6 +15,7 @@ import type {
   RelationshipAuthorityProjection,
   RelationshipAuthoritySubjectReference,
 } from './relationship-authority-evaluation.ts';
+import { projectRelationshipAuthorityState } from './relationship-authority-evaluation.ts';
 
 export interface EngineeringRelationshipQuery {
   getGraph(): ResolvedEngineeringKnowledgeGraph;
@@ -93,11 +94,11 @@ export function createEngineeringRelationshipQuery(
             authoritySubject,
           }),
         );
-      return Object.freeze({
+      return projectRelationshipAuthorityState(
         reconstruction,
-        evaluations: Object.freeze(evaluations),
-        historicalEvaluations: Object.freeze(historicalEvaluations),
-      });
+        evaluations,
+        historicalEvaluations,
+      );
     },
   });
 }

@@ -54,6 +54,7 @@ export interface RelationshipAuthorityEvaluation {
   readonly declarationFingerprint: string;
   readonly relationshipFingerprint: string;
   readonly structuralStatus: RelationshipReconstructionStatus;
+  readonly evidenceReferenceCount: number;
   readonly evidenceResolution: RelationshipEvidenceResolution;
   readonly authorityStatus: AuthorityStatus;
   readonly trustStatus: TrustStatus;
@@ -96,6 +97,7 @@ export function createRelationshipAuthorityEvaluationAdapter(
         declarationFingerprint: input.declaration.fingerprint,
         relationshipFingerprint: input.declaration.fact.fingerprint,
         structuralStatus: input.structuralStatus,
+        evidenceReferenceCount: input.declaration.evidenceReferences.length,
         evidenceResolution,
         authoritySubjectId: input.authoritySubject?.authoritySubjectId ?? null,
         authoritySubjectRevision:
@@ -191,4 +193,135 @@ export interface RelationshipAuthorityProjection {
   readonly reconstruction: RelationshipReconstruction;
   readonly evaluations: readonly RelationshipAuthorityEvaluation[];
   readonly historicalEvaluations: readonly RelationshipAuthorityEvaluation[];
+  readonly evidence: RelationshipEvidenceProjection;
+  readonly historicalEvidence: RelationshipEvidenceProjection;
+  readonly authority: RelationshipAuthorityProjectionState;
+  readonly historicalAuthority: RelationshipAuthorityProjectionState;
+  readonly trust: RelationshipTrustProjectionState;
+  readonly historicalTrust: RelationshipTrustProjectionState;
+  readonly conflict: boolean;
+  readonly historical: boolean;
+  readonly reasonCodes: readonly TrustReasonCode[];
+  readonly diagnostics: readonly string[];
+}
+
+export type RelationshipEvidenceProjectionPresence =
+  | 'UNKNOWN'
+  | 'ABSENT'
+  | 'PRESENT';
+
+export type RelationshipEvidenceProjectionResolution =
+  | 'UNKNOWN'
+  | 'UNRESOLVED'
+  | 'RESOLVED'
+  | 'MIXED';
+
+export interface RelationshipEvidenceProjection {
+  readonly presence: RelationshipEvidenceProjectionPresence;
+  readonly resolution: RelationshipEvidenceProjectionResolution;
+  readonly complete: boolean;
+}
+
+export interface RelationshipAuthorityProjectionState {
+  readonly statuses: readonly AuthorityStatus[];
+  readonly assessed: boolean;
+  readonly established: boolean;
+}
+
+export interface RelationshipTrustProjectionState {
+  readonly statuses: readonly TrustStatus[];
+  readonly established: boolean;
+}
+
+export function projectRelationshipAuthorityState(
+  reconstruction: RelationshipReconstruction,
+  evaluations: readonly RelationshipAuthorityEvaluation[],
+  historicalEvaluations: readonly RelationshipAuthorityEvaluation[],
+): RelationshipAuthorityProjection {
+  return Object.freeze({
+    reconstruction,
+    evaluations: Object.freeze([...evaluations]),
+    historicalEvaluations: Object.freeze([...historicalEvaluations]),
+    evidence: projectEvidence(evaluations),
+    historicalEvidence: projectEvidence(historicalEvaluations),
+    authority: projectAuthority(evaluations),
+    historicalAuthority: projectAuthority(historicalEvaluations),
+    trust: projectTrust(evaluations),
+    historicalTrust: projectTrust(historicalEvaluations),
+    conflict: reconstruction.status === 'CONFLICTING',
+    historical: reconstruction.historicalDeclarations.length > 0,
+    reasonCodes: Object.freeze(uniqueSorted(
+      [...evaluations, ...historicalEvaluations].flatMap(
+        (evaluation) => evaluation.reasonCodes,
+      ),
+    )),
+    diagnostics: Object.freeze(uniqueSorted(
+      [...evaluations, ...historicalEvaluations].flatMap(
+        (evaluation) => evaluation.diagnostics,
+      ),
+    )),
+  });
+}
+
+function projectEvidence(
+  evaluations: readonly RelationshipAuthorityEvaluation[],
+): RelationshipEvidenceProjection {
+  if (evaluations.length === 0) {
+    return Object.freeze({
+      presence: 'UNKNOWN',
+      resolution: 'UNKNOWN',
+      complete: false,
+    });
+  }
+  const presence = evaluations.every(
+    (evaluation) => evaluation.evidenceReferenceCount === 0,
+  )
+    ? 'ABSENT'
+    : 'PRESENT';
+  if (presence === 'ABSENT') {
+    return Object.freeze({ presence, resolution: 'UNKNOWN', complete: false });
+  }
+  const resolutions = new Set(
+    evaluations.map((evaluation) => evaluation.evidenceResolution.status),
+  );
+  if (resolutions.size === 1 && resolutions.has('RESOLVED')) {
+    return Object.freeze({ presence, resolution: 'RESOLVED', complete: true });
+  }
+  return Object.freeze({
+    presence,
+    resolution: resolutions.size === 1 ? 'UNRESOLVED' : 'MIXED',
+    complete: false,
+  });
+}
+
+function projectAuthority(
+  evaluations: readonly RelationshipAuthorityEvaluation[],
+): RelationshipAuthorityProjectionState {
+  const statuses = uniqueSorted(
+    evaluations.map((evaluation) => evaluation.authorityStatus),
+  );
+  return Object.freeze({
+    statuses,
+    assessed: statuses.some((status) => status !== 'UNASSESSED'),
+    established:
+      statuses.length > 0 &&
+      statuses.every((status) => status === 'RESOLVED'),
+  });
+}
+
+function projectTrust(
+  evaluations: readonly RelationshipAuthorityEvaluation[],
+): RelationshipTrustProjectionState {
+  const statuses = uniqueSorted(
+    evaluations.map((evaluation) => evaluation.trustStatus),
+  );
+  return Object.freeze({
+    statuses,
+    established:
+      statuses.length > 0 && statuses.every((status) => status === 'TRUSTED'),
+  });
+}
+
+function uniqueSorted<T extends string>(values: readonly T[]): readonly T[] {
+  return [...new Set(values)].sort() as T[];
 }
