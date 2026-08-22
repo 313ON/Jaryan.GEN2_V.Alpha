@@ -14,3 +14,4 @@ export * from './result-provenance.ts';
 export * from './benchmark-registry.ts';
 export * from './engineering-knowledge-query.ts';
 export * from './engineering-relationship-query.ts';
+export * from './relationship-authority-evaluation.ts';

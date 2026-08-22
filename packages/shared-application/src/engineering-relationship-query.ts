@@ -9,6 +9,12 @@ import {
   type RelationshipDeclaration,
   type ResolvedEngineeringKnowledgeGraph,
 } from '@jaryan/shared-domain';
+import type {
+  RelationshipAuthorityEvaluationAdapter,
+  RelationshipAuthorityEvaluation,
+  RelationshipAuthorityProjection,
+  RelationshipAuthoritySubjectReference,
+} from './relationship-authority-evaluation.ts';
 
 export interface EngineeringRelationshipQuery {
   getGraph(): ResolvedEngineeringKnowledgeGraph;
@@ -17,6 +23,13 @@ export interface EngineeringRelationshipQuery {
     queryContext: RelationshipQueryContext,
     evidenceAdapter?: RelationshipEvidenceAdapter,
   ): RelationshipReconstruction;
+  evaluateAuthority(
+    fact: RelationshipFact,
+    queryContext: RelationshipQueryContext,
+    authorityAdapter: RelationshipAuthorityEvaluationAdapter,
+    authoritySubject: RelationshipAuthoritySubjectReference | null,
+    evidenceAdapter?: RelationshipEvidenceAdapter,
+  ): RelationshipAuthorityProjection;
 }
 
 /**
@@ -48,6 +61,43 @@ export function createEngineeringRelationshipQuery(
         queryContext,
         evidenceAdapter,
       );
+    },
+
+    evaluateAuthority(
+      fact: RelationshipFact,
+      queryContext: RelationshipQueryContext,
+      authorityAdapter: RelationshipAuthorityEvaluationAdapter,
+      authoritySubject: RelationshipAuthoritySubjectReference | null,
+      evidenceAdapter?: RelationshipEvidenceAdapter,
+    ): RelationshipAuthorityProjection {
+      const reconstruction = reconstructEngineeringRelationship(
+        registry,
+        graph,
+        fact,
+        queryContext,
+        evidenceAdapter,
+      );
+      const evaluations: RelationshipAuthorityEvaluation[] =
+        reconstruction.declarations.map((declaration) =>
+          authorityAdapter.evaluate({
+            declaration,
+            structuralStatus: reconstruction.status,
+            authoritySubject,
+          }),
+        );
+      const historicalEvaluations: RelationshipAuthorityEvaluation[] =
+        reconstruction.historicalDeclarations.map((declaration) =>
+          authorityAdapter.evaluate({
+            declaration,
+            structuralStatus: 'HISTORICAL',
+            authoritySubject,
+          }),
+        );
+      return Object.freeze({
+        reconstruction,
+        evaluations: Object.freeze(evaluations),
+        historicalEvaluations: Object.freeze(historicalEvaluations),
+      });
     },
   });
 }
