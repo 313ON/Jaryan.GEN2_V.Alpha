@@ -256,7 +256,32 @@ export function canonicalizeRelationshipDeclarations(
 ): readonly RelationshipDeclaration[] {
   const byFingerprint = new Map<string, RelationshipDeclaration>();
   for (const declaration of declarations) {
-    byFingerprint.set(declaration.fingerprint, declaration);
+    const fact = relationshipFact({
+      subject: declaration.fact.subject,
+      predicate: declaration.fact.predicate,
+      object: declaration.fact.object,
+    });
+    if (declaration.fact.fingerprint !== fact.fingerprint) {
+      throw new Error(
+        `Invalid relationship declaration: fact fingerprint mismatch for ${declaration.fingerprint}.`,
+      );
+    }
+    const canonical = relationshipDeclaration({
+      fact,
+      assertionDisposition: declaration.assertionDisposition,
+      applicabilityContext: declaration.applicabilityContext,
+      temporalValidity: declaration.temporalValidity,
+      origin: declaration.origin,
+      actor: declaration.actor,
+      evidenceReferences: declaration.evidenceReferences,
+      supersedes: declaration.supersedes,
+    });
+    if (declaration.fingerprint !== canonical.fingerprint) {
+      throw new Error(
+        `Invalid relationship declaration: declaration fingerprint mismatch for ${declaration.fingerprint}.`,
+      );
+    }
+    byFingerprint.set(canonical.fingerprint, canonical);
   }
   return [...byFingerprint.values()].sort((a, b) =>
     a.fingerprint.localeCompare(b.fingerprint),
@@ -361,19 +386,8 @@ export function reconstructRelationship(
       evidence,
     };
   }
-  if (evidence.some((result) => result.status !== 'RESOLVED' || !result.complete)) {
-    return {
-      status: evidence.some((result) => result.status === 'UNVERIFIED')
-        ? 'UNVERIFIED'
-        : 'INSUFFICIENT_EVIDENCE',
-      fact,
-      declarations: eligible,
-      historicalDeclarations,
-      evidence,
-    };
-  }
   return {
-    status: 'RESOLVED',
+    status: 'UNVERIFIED',
     fact,
     declarations: eligible,
     historicalDeclarations,

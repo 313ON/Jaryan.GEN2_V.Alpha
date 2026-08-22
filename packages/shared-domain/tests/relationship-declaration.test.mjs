@@ -102,6 +102,28 @@ test('declaration fingerprints are deterministic and derived state is excluded',
   assert.equal(Object.isFrozen(first.evidenceReferences), true);
 });
 
+test('forged declaration fingerprints are rejected during canonicalization', () => {
+  const valid = declaration();
+  const forged = { ...valid, fingerprint: '0'.repeat(64) };
+  assert.throws(
+    () => resolveEngineeringKnowledgeGraph(registry, [forged]),
+    /declaration fingerprint mismatch/,
+  );
+});
+
+test('mutated declaration content with a stale fingerprint is rejected', () => {
+  const valid = declaration();
+  const stale = {
+    ...valid,
+    origin: 'IMPORTED',
+    actor: null,
+  };
+  assert.throws(
+    () => resolveEngineeringKnowledgeGraph(registry, [stale]),
+    /declaration fingerprint mismatch/,
+  );
+});
+
 test('graph canonicalizes duplicate declarations without replacing dependency behavior', () => {
   const first = declaration();
   const duplicate = declaration();
@@ -174,7 +196,7 @@ test('explicit supersession removes only the referenced predecessor', () => {
     { queryTime: '2026-08-22T12:00:00Z', applicabilityContext: 'PROJECT:REL' },
     resolvedEvidence,
   );
-  assert.equal(result.status, 'RESOLVED');
+  assert.equal(result.status, 'UNVERIFIED');
   assert.deepEqual(
     result.declarations.map((item) => item.fingerprint),
     [replacement.fingerprint],
@@ -198,7 +220,7 @@ test('timestamp order alone does not supersede an earlier declaration', () => {
     { queryTime: '2026-08-22T12:00:00Z', applicabilityContext: 'PROJECT:REL' },
     resolvedEvidence,
   );
-  assert.equal(result.status, 'RESOLVED');
+  assert.equal(result.status, 'UNVERIFIED');
   assert.equal(result.declarations.length, 2);
 });
 
@@ -294,4 +316,17 @@ test('AI proposals remain unverified without governed evidence', () => {
   );
   assert.equal(result.status, 'UNVERIFIED');
   assert.equal(candidate.origin, 'AI_PROPOSAL');
+});
+
+test('resolved evidence references do not establish relationship truth', () => {
+  const result = reconstructEngineeringRelationship(
+    registry,
+    declaration().fact,
+    [declaration()],
+    { queryTime: '2026-08-22T12:00:00Z', applicabilityContext: 'PROJECT:REL' },
+    resolvedEvidence,
+  );
+  assert.equal(result.status, 'UNVERIFIED');
+  assert.equal(result.evidence[0].status, 'RESOLVED');
+  assert.equal(result.evidence[0].complete, true);
 });
