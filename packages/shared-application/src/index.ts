@@ -16,3 +16,5 @@ export * from './engineering-knowledge-query.ts';
 export * from './engineering-relationship-query.ts';
 export * from './engineering-decision-trace.ts';
 export * from './relationship-authority-evaluation.ts';
+export * from './observation-evaluation.ts';
+export * from './capture-observation.ts';
