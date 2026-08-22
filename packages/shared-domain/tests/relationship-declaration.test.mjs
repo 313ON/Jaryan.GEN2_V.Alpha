@@ -573,6 +573,7 @@ test('Phase 15 geometry metadata is declaration-level and fingerprint-distinct',
     state: 'DESIGNED',
     coordinateReference: 'EPSG:4326',
     units: 'm',
+    productionMethod: 'survey-adjusted-model',
     uncertainty: 'ESTIMATED',
     temporalValidity: {
       validFrom: '2026-01-01T00:00:00Z',
@@ -630,6 +631,7 @@ test('Phase 15 REPRESENTED_BY reconstructs deterministically without geometry au
       state: 'UNKNOWN',
       coordinateReference: null,
       units: 'm',
+      productionMethod: 'external-model-import',
       uncertainty: 'UNKNOWN',
       temporalValidity: {
         validFrom: '2026-01-01T00:00:00Z',

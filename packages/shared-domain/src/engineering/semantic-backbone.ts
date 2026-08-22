@@ -188,12 +188,17 @@ export interface GeometrySemanticMetadata {
   readonly state: GeometryState;
   readonly coordinateReference: string | null;
   readonly units: string | null;
+  /** Opaque semantic description of how the representation was produced. */
+  readonly productionMethod: string | null;
   readonly uncertainty: UncertaintyState;
   readonly temporalValidity: TemporalValidity;
   readonly evidenceReference: EngineeringArtifactIdentity | null;
 }
 
-export interface GeometrySemanticMetadataInput extends GeometrySemanticMetadata {}
+export interface GeometrySemanticMetadataInput
+  extends Omit<GeometrySemanticMetadata, 'productionMethod'> {
+  readonly productionMethod?: string | null;
+}
 
 export function physicalAssetSemanticIdentity(
   input: PhysicalAssetSemanticIdentityInput,
@@ -244,6 +249,7 @@ export function geometrySemanticMetadata(
   }
   return deepFreeze({
     ...input,
+    productionMethod: input.productionMethod ?? null,
     temporalValidity: { ...input.temporalValidity },
   });
 }
@@ -331,6 +337,14 @@ export function validateGeometrySemanticMetadata(
   }
   if (input.units !== null && input.units.trim() === '') {
     errors.push('Units must be non-empty or null.');
+  }
+  if (
+    input.productionMethod !== undefined &&
+    input.productionMethod !== null &&
+    (typeof input.productionMethod !== 'string' ||
+      input.productionMethod.trim() === '')
+  ) {
+    errors.push('Production method must be non-empty or null.');
   }
   if (input.evidenceReference !== null) {
     errors.push(...validateArtifactIdentity(input.evidenceReference, 'Evidence reference'));

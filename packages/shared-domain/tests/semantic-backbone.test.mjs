@@ -104,6 +104,7 @@ test('geometry metadata remains semantic and evidence-linked without geometry pa
     state: 'UNKNOWN',
     coordinateReference: null,
     units: 'm',
+    productionMethod: 'external-model-import',
     uncertainty: 'UNCERTAIN',
     temporalValidity: { recordedAt: '2026-08-21T12:00:00Z' },
     evidenceReference: artifact('SOURCE', 'IMPORTED-GEOMETRY'),
@@ -111,7 +112,23 @@ test('geometry metadata remains semantic and evidence-linked without geometry pa
 
   assert.equal(metadata.representationType, 'IMPORTED');
   assert.equal(metadata.state, 'UNKNOWN');
+  assert.equal(metadata.productionMethod, 'external-model-import');
   assert.equal(metadata.evidenceReference.type, 'SOURCE');
   assert.deepEqual(validateGeometrySemanticMetadata(metadata), []);
   assert.equal('geometry' in metadata, false);
+});
+
+test('geometry production method remains explicit and rejects empty values', () => {
+  const errors = validateGeometrySemanticMetadata({
+    representationType: 'DESIGN',
+    state: 'DESIGNED',
+    coordinateReference: null,
+    units: null,
+    productionMethod: '   ',
+    uncertainty: 'UNKNOWN',
+    temporalValidity: { recordedAt: '2026-08-21T12:00:00Z' },
+    evidenceReference: null,
+  });
+
+  assert.ok(errors.some((error) => error.includes('Production method')));
 });

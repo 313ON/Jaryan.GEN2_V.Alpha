@@ -694,6 +694,7 @@ function canonicalGeometryMetadata(
     state: metadata.state,
     coordinateReference: metadata.coordinateReference,
     units: metadata.units,
+    productionMethod: metadata.productionMethod,
     uncertainty: metadata.uncertainty,
     temporalValidity: {
       validFrom: metadata.temporalValidity.validFrom,
