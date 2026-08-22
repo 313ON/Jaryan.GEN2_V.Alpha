@@ -2,12 +2,14 @@
 
 ## Status
 
-Proposed — architecture review only.
+Accepted — recorded on 2026-08-22 for the bounded Release C
+representation-scope implementation.
 
 This ADR defines a bounded semantic extension for drawing and plan
-representation scope. It does not authorize production implementation,
-persistence, document management, file processing, external ingestion, API,
-UI, or workflow behavior.
+representation scope. It authorizes only the shared-domain semantic contract
+described in section N. It does not authorize persistence, document
+management, file processing, external ingestion, API, UI, or workflow
+behavior.
 
 ## A. Problem
 
@@ -169,6 +171,18 @@ example `DETAIL 3/A-501` or `SECTION A-A`.
 This candidate closes the semantic gap while minimizing normalization and
 authority.
 
+`RESOLVED` has a deliberately narrow meaning: the locator has been
+semantically recognized and is structurally valid under this scope contract.
+It does not imply:
+
+- authority;
+- validity of the referenced drawing location;
+- physical correctness;
+- existence of the referenced sheet or view;
+- evidence sufficiency;
+- trust;
+- latest or current status.
+
 ## E. Recommended smallest design
 
 Adopt Candidate 3 as the semantic direction for implementation review.
@@ -199,8 +213,20 @@ identity. Whitespace-only values are invalid. Values such as `Sheet ?`,
 because they are non-empty.
 
 Multiple scope references are declaration metadata, not graph endpoints.
-Canonicalization may sort and deduplicate exact reference content for
-determinism, but must not infer parent/child relationships or uniqueness.
+Canonicalization uses only exact tuple-based sorting and deduplication over:
+
+```text
+(kind, value, resolution)
+```
+
+It must not infer parent/child relationships, containment, uniqueness,
+preferred scope, source-label ordering, numeric ordering, latest scope, or
+any other relationship between references.
+
+The canonical representation of no declared scope is `null`. An input empty
+collection is normalized to `null`; it does not create a second semantic
+meaning. This rule is part of deterministic declaration canonicalization and
+fingerprinting.
 
 No `DETAIL`, `SECTION`, or `ELEVATION` enum is justified by the current
 repository. Those meanings remain source-declared view values until a later
@@ -238,8 +264,8 @@ revisions.
 Scope references reuse existing declaration semantics:
 
 - `TemporalValidity` describes when the scope claim applies;
-- `applicabilityContext` describes the applicable project, issue context, or
-  other governed query scope;
+- `applicabilityContext` describes the explicitly caller-supplied applicable
+  project or other governed query scope;
 - explicit `supersedes` references preserve predecessor declarations;
 - missing temporal boundaries remain unknown;
 - missing applicability remains unknown;
@@ -256,6 +282,20 @@ No issue or scope ordering is inferred from:
 - upload order;
 - insertion order;
 - synchronization order.
+
+Different affirmative scope locators are independent declaration claims. For
+example:
+
+```text
+SHEET:A-101
+SHEET:A-102
+```
+
+must not automatically reconstruct as `CONFLICTING`. They remain separately
+addressable claims unless the existing explicit conflict semantics produce a
+conflict, such as affirming and denying declarations for the same fact and
+applicable context. No scope-specific conflict scoring, ranking, or inference
+is introduced.
 
 ## H. Issue semantics
 
@@ -279,11 +319,13 @@ by its source or author. It does not mean:
 Artifact `version` remains the artifact revision identity. An issue label does
 not replace or alter artifact version semantics.
 
-Issue applicability may be expressed through the existing
-`applicabilityContext` and `TemporalValidity`. Issue supersession may be
-expressed only through explicit declaration `supersedes` references or other
-already governed relationships. No issue registry, issue identity, issue
-ordering, or automatic issue transition is introduced.
+Issue labels are not applicability keys. Applicability remains an explicitly
+caller-supplied `applicabilityContext`, evaluated with existing temporal
+semantics. Issue labels are not ordering keys, latest/current selectors, or
+supersession selectors. Issue supersession may be expressed only through
+explicit declaration `supersedes` references or other already governed
+relationships. No issue registry, issue identity, issue ordering, or
+automatic issue transition is introduced.
 
 ## I. Fingerprint semantics
 
@@ -312,6 +354,16 @@ representationMetadata:
     resolution
 ```
 
+Before fingerprinting, `scopeReferences` is normalized as follows:
+
+1. an absent value or empty collection becomes `null`;
+2. each reference is represented by its exact `(kind, value, resolution)`
+   tuple;
+3. duplicate tuples are removed;
+4. tuples are sorted lexicographically by `kind`, then `value`, then
+   `resolution`;
+5. no source-label, numeric, timestamp, or insertion ordering is applied.
+
 Consequences:
 
 - two declarations with different scope references remain distinct;
@@ -327,9 +379,10 @@ The following behavior is mandatory:
 
 ### Missing scope
 
-`scopeReferences: null` or an absent scope means no representation sub-scope
-was declared. It must not be inferred from filenames, page counts, drawing
-titles, or geometry payloads.
+`scopeReferences: null`, an absent scope, or an input empty collection
+canonicalized to `null` means no representation sub-scope was declared. It
+must not be inferred from filenames, page counts, drawing titles, or geometry
+payloads.
 
 ### `UNKNOWN`
 
@@ -353,9 +406,9 @@ kind, malformed resolution, or non-canonical content.
 ### Conflicting locators
 
 Different affirming locators for the same representation fact remain separate
-declaration claims. They are not merged or selected automatically. Existing
-affirm/deny conflict and historical reconstruction semantics remain
-authoritative.
+declaration claims. They are not merged, ranked, or selected automatically,
+and they do not by themselves produce `CONFLICTING`. Existing affirm/deny
+conflict and historical reconstruction semantics remain authoritative.
 
 `Sheet ?`, imported labels, and AI-generated locators remain claims with their
 declared resolution and origin. They cannot become canonical through presence
@@ -394,7 +447,8 @@ not a graph endpoint.
 ### Hidden issue revision identity
 
 Rejected. Artifact version remains the only artifact revision identity. Issue
-labels are uninterpreted source values.
+labels are uninterpreted source values and are not applicability, ordering,
+latest/current, or supersession selectors.
 
 ### Implicit latest issue
 
@@ -439,6 +493,11 @@ Rejected. Scope is declaration metadata carried by the existing
 Rejected. Issue and scope metadata qualify a declaration; they do not alter
 artifact identity or version semantics.
 
+### Competing affirmative locators becoming conflict
+
+Rejected. Different affirmative locators remain independent claims. Only
+existing explicit conflict semantics may produce `CONFLICTING`.
+
 ## M. Explicit non-scope
 
 This ADR does not authorize:
@@ -474,17 +533,23 @@ This ADR does not authorize:
 
 ## N. Implementation gate
 
-This ADR is Proposed and does not authorize implementation.
+This ADR is Accepted for the bounded implementation described below.
 
-If accepted in a later architecture review, the smallest implementation may
-extend declaration-scoped representation metadata with:
+The bounded implementation extends declaration-scoped representation metadata
+with only:
 
+- `shared-domain` only;
 - `scopeReferences`;
 - `SHEET` and `VIEW` kinds only;
 - opaque source-declared values;
 - explicit `RESOLVED`, `UNKNOWN`, `UNRESOLVED`, `AMBIGUOUS`, and `INVALID`
   states;
-- deterministic canonicalization;
+- `RESOLVED` limited to semantic recognition and structural validity, never
+  authority, existence, correctness, evidence sufficiency, trust, or
+  latest/current status;
+- `null` as the canonical no-scope representation, with empty input
+  collections normalized to `null`;
+- exact tuple-based sorting and deduplication only;
 - declaration-fingerprint participation;
 - unchanged fact fingerprints;
 - unchanged `KnowledgeGraph`, identity, evidence, authority, trust, temporal,
@@ -496,13 +561,14 @@ Implementation must demonstrate:
 - no document, sheet, issue, or file registry;
 - no new graph or predicate;
 - no latest/current selection;
+- no automatic conflict derivation from differing affirmative locators;
 - preserved historical and conflicting declarations;
 - explicit unresolved and ambiguous behavior;
 - unchanged existing `DEPENDENCY`, `DESCRIBED_BY`, `CALCULATED_FOR`,
   `REPRESENTED_BY`, and decision/change behavior.
 
-No production code, tests, persistence, API, UI, ingestion, or workflow
-implementation is authorized by this Proposed ADR.
+No persistence, API, UI, ingestion, workflow, document-management, or
+authority/trust-engine implementation is authorized by this ADR.
 
 ## Related decisions
 

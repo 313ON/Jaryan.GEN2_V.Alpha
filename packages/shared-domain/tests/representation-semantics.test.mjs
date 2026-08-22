@@ -56,6 +56,51 @@ test('representation metadata classifies plan/drawing meaning and remains immuta
   assert.deepEqual(validateEngineeringRepresentationSemanticMetadata(metadata), []);
   assert.equal(Object.isFrozen(metadata), true);
   assert.equal(metadata.issue, 'IFC-02');
+  assert.equal(metadata.scopeReferences, null);
+});
+
+test('scope references are immutable, SHEET/VIEW bounded, opaque and canonical', () => {
+  const metadata = engineeringRepresentationSemanticMetadata({
+    representationKind: 'DRAWING',
+    semanticRole: 'REFERENCE',
+    scopeReferences: [
+      { kind: 'VIEW', value: 'SECTION A-A', resolution: 'UNRESOLVED' },
+      { kind: 'SHEET', value: 'A-101', resolution: 'RESOLVED' },
+      { kind: 'VIEW', value: 'SECTION A-A', resolution: 'UNRESOLVED' },
+      { kind: 'VIEW', value: 'DETAIL 3/A-501', resolution: 'AMBIGUOUS' },
+    ],
+  });
+
+  assert.deepEqual(metadata.scopeReferences, [
+    { kind: 'SHEET', value: 'A-101', resolution: 'RESOLVED' },
+    { kind: 'VIEW', value: 'DETAIL 3/A-501', resolution: 'AMBIGUOUS' },
+    { kind: 'VIEW', value: 'SECTION A-A', resolution: 'UNRESOLVED' },
+  ]);
+  assert.equal(Object.isFrozen(metadata.scopeReferences), true);
+  assert.equal(Object.isFrozen(metadata.scopeReferences[0]), true);
+  assert.deepEqual(
+    engineeringRepresentationSemanticMetadata({
+      representationKind: 'PLAN',
+      semanticRole: 'REFERENCE',
+      scopeReferences: [],
+    }).scopeReferences,
+    null,
+  );
+});
+
+test('scope reference validation keeps resolution separate from authority', () => {
+  const errors = validateEngineeringRepresentationSemanticMetadata({
+    representationKind: 'DRAWING',
+    semanticRole: 'REFERENCE',
+    scopeReferences: [
+      { kind: 'SHEET', value: 'Sheet ?', resolution: 'UNRESOLVED' },
+      { kind: 'VIEW', value: '   ', resolution: 'RESOLVED' },
+      { kind: 'DETAIL', value: '3/A-501', resolution: 'RESOLVED' },
+    ],
+  });
+
+  assert.ok(errors.some((error) => error.includes('scope value must be')));
+  assert.ok(errors.some((error) => error.includes('Unsupported representation scope kind')));
 });
 
 test('representation metadata is declaration-scoped and participates in deterministic fingerprints', () => {
@@ -75,6 +120,10 @@ test('representation metadata is declaration-scoped and participates in determin
       representationKind: 'DRAWING',
       semanticRole: 'DESIGN_INTENT',
       issue: 'IFC-02',
+      scopeReferences: [
+        { kind: 'VIEW', value: 'SECTION A-A', resolution: 'UNRESOLVED' },
+        { kind: 'SHEET', value: 'A-101', resolution: 'RESOLVED' },
+      ],
     },
   });
   const plan = relationshipDeclaration({
@@ -83,12 +132,56 @@ test('representation metadata is declaration-scoped and participates in determin
       representationKind: 'PLAN',
       semanticRole: 'DESIGN_INTENT',
       issue: 'IFC-03',
+      scopeReferences: [
+        { kind: 'SHEET', value: 'A-102', resolution: 'RESOLVED' },
+      ],
     },
   });
 
   assert.equal(drawing.representationMetadata.representationKind, 'DRAWING');
   assert.notEqual(drawing.fingerprint, plan.fingerprint);
   assert.equal(drawing.fact.fingerprint, plan.fact.fingerprint);
+});
+
+test('scope order and duplicate input do not change declaration fingerprints', () => {
+  const base = {
+    fact,
+    assertionDisposition: 'AFFIRM',
+    applicabilityContext: 'PROJECT-REP',
+    temporalValidity,
+    origin: 'IMPORTED',
+    actor: null,
+    evidenceReferences: [],
+    supersedes: [],
+  };
+  const first = relationshipDeclaration({
+    ...base,
+    representationMetadata: {
+      representationKind: 'DRAWING',
+      semanticRole: 'REFERENCE',
+      issue: null,
+      scopeReferences: [
+        { kind: 'VIEW', value: 'SECTION A-A', resolution: 'UNRESOLVED' },
+        { kind: 'SHEET', value: 'A-101', resolution: 'RESOLVED' },
+      ],
+    },
+  });
+  const second = relationshipDeclaration({
+    ...base,
+    representationMetadata: {
+      representationKind: 'DRAWING',
+      semanticRole: 'REFERENCE',
+      issue: null,
+      scopeReferences: [
+        { kind: 'SHEET', value: 'A-101', resolution: 'RESOLVED' },
+        { kind: 'VIEW', value: 'SECTION A-A', resolution: 'UNRESOLVED' },
+        { kind: 'VIEW', value: 'SECTION A-A', resolution: 'UNRESOLVED' },
+      ],
+    },
+  });
+
+  assert.equal(first.fact.fingerprint, second.fact.fingerprint);
+  assert.equal(first.fingerprint, second.fingerprint);
 });
 
 test('representation metadata cannot be attached to another predicate', () => {
@@ -188,5 +281,63 @@ test('issue applicability uses the existing declaration context without implicit
   assert.equal(
     result.historicalDeclarations[0].representationMetadata.issue,
     '03',
+  );
+});
+
+test('differing affirmative scope locators remain independent and do not imply conflict', () => {
+  const sheetA = relationshipDeclaration({
+    fact,
+    assertionDisposition: 'AFFIRM',
+    applicabilityContext: 'PROJECT-REP',
+    temporalValidity,
+    origin: 'IMPORTED',
+    actor: null,
+    evidenceReferences: [],
+    representationMetadata: {
+      representationKind: 'DRAWING',
+      semanticRole: 'REFERENCE',
+      issue: null,
+      scopeReferences: [
+        { kind: 'SHEET', value: 'A-101', resolution: 'RESOLVED' },
+      ],
+    },
+    supersedes: [],
+  });
+  const sheetB = relationshipDeclaration({
+    fact,
+    assertionDisposition: 'AFFIRM',
+    applicabilityContext: 'PROJECT-REP',
+    temporalValidity,
+    origin: 'IMPORTED',
+    actor: null,
+    evidenceReferences: [],
+    representationMetadata: {
+      representationKind: 'DRAWING',
+      semanticRole: 'REFERENCE',
+      issue: null,
+      scopeReferences: [
+        { kind: 'SHEET', value: 'A-102', resolution: 'RESOLVED' },
+      ],
+    },
+    supersedes: [],
+  });
+
+  const result = reconstructRelationship(
+    fact,
+    [sheetB, sheetA],
+    () => 'RESOLVED',
+    {
+      queryTime: '2026-08-22T12:00:00Z',
+      applicabilityContext: 'PROJECT-REP',
+    },
+  );
+
+  assert.equal(result.status, 'INSUFFICIENT_EVIDENCE');
+  assert.equal(result.declarations.length, 2);
+  assert.deepEqual(
+    result.declarations.map((declaration) =>
+      declaration.representationMetadata.scopeReferences[0].value,
+    ),
+    ['A-101', 'A-102'],
   );
 });

@@ -784,6 +784,14 @@ function canonicalRepresentationMetadata(
     representationKind: metadata.representationKind,
     semanticRole: metadata.semanticRole,
     issue: metadata.issue,
+    scopeReferences:
+      metadata.scopeReferences === null
+        ? null
+        : metadata.scopeReferences.map((reference) => ({
+            kind: reference.kind,
+            value: reference.value,
+            resolution: reference.resolution,
+          })),
   };
 }
 
