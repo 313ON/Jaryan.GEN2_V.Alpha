@@ -3,14 +3,22 @@ import type { EngineeringArtifactIdentity } from './artifact-identity.ts';
 import { validateEngineeringArtifactIdentity } from './artifact-identity.ts';
 import { contentFingerprint } from './content-fingerprint.ts';
 import {
+  type KnowledgeGraphEndpoint,
+  validateKnowledgeGraphEndpoint,
+} from './graph-endpoint.ts';
+import type { PhysicalReferentIdentity } from './physical-referent-identity.ts';
+import {
   type TemporalValidity,
   validateTemporalValidity,
 } from './semantic-backbone.ts';
 
-export type EngineeringRelationshipPredicate = 'DEPENDENCY';
+export type EngineeringRelationshipPredicate =
+  | 'DEPENDENCY'
+  | 'DESCRIBED_BY'
+  | 'CALCULATED_FOR';
 
 export const ENGINEERING_RELATIONSHIP_PREDICATES: readonly EngineeringRelationshipPredicate[] =
-  ['DEPENDENCY'];
+  ['DEPENDENCY', 'DESCRIBED_BY', 'CALCULATED_FOR'];
 
 export type RelationshipAssertionDisposition = 'AFFIRM' | 'DENY';
 
@@ -28,10 +36,14 @@ export type RelationshipDeclarationOrigin =
 export const RELATIONSHIP_DECLARATION_ORIGINS: readonly RelationshipDeclarationOrigin[] =
   ['HUMAN', 'OBSERVATION', 'IMPORTED', 'SYSTEM', 'AUTHORITY_RECORD', 'AI_PROPOSAL'];
 
+export type EngineeringRelationshipEndpoint =
+  | EngineeringArtifactReference
+  | KnowledgeGraphEndpoint;
+
 export interface RelationshipFact {
-  readonly subject: EngineeringArtifactReference;
+  readonly subject: EngineeringRelationshipEndpoint;
   readonly predicate: EngineeringRelationshipPredicate;
-  readonly object: EngineeringArtifactReference;
+  readonly object: EngineeringRelationshipEndpoint;
   readonly fingerprint: string;
 }
 
@@ -148,8 +160,20 @@ export function validateRelationshipFact(
   if (!ENGINEERING_RELATIONSHIP_PREDICATES.includes(input.predicate)) {
     errors.push(`Unsupported relationship predicate: ${String(input.predicate)}.`);
   }
-  errors.push(...validateReference(input.subject, 'Subject'));
-  errors.push(...validateReference(input.object, 'Object'));
+  errors.push(
+    ...validateRelationshipEndpoint(
+      input.subject,
+      input.predicate,
+      'subject',
+    ),
+  );
+  errors.push(
+    ...validateRelationshipEndpoint(
+      input.object,
+      input.predicate,
+      'object',
+    ),
+  );
   return errors;
 }
 
@@ -292,7 +316,7 @@ export function reconstructRelationship(
   fact: RelationshipFact,
   declarations: readonly RelationshipDeclaration[],
   resolveEndpoint: (
-    reference: EngineeringArtifactReference,
+    reference: EngineeringRelationshipEndpoint,
   ) => 'RESOLVED' | 'AMBIGUOUS' | 'NOT_FOUND' | 'INVALID',
   queryContext: RelationshipQueryContext,
   evidenceAdapter?: RelationshipEvidenceAdapter,
@@ -448,12 +472,47 @@ function emptyReconstruction(
   };
 }
 
-function validateReference(
-  reference: EngineeringArtifactReference,
-  label: string,
+function validateRelationshipEndpoint(
+  reference: EngineeringRelationshipEndpoint,
+  predicate: EngineeringRelationshipPredicate,
+  position: 'subject' | 'object',
 ): readonly string[] {
+  const label = position === 'subject' ? 'Subject' : 'Object';
   if (!reference || typeof reference !== 'object') {
     return [`${label} reference must be provided.`];
+  }
+  if (predicate === 'DEPENDENCY') {
+    return validateArtifactReference(reference, label);
+  }
+  if (!isKnowledgeGraphEndpoint(reference)) {
+    return [
+      `${label} endpoint for ${predicate} must be a canonical KnowledgeGraph endpoint.`,
+    ];
+  }
+  const expectedKind =
+    predicate === 'DESCRIBED_BY'
+      ? position === 'subject'
+        ? 'PHYSICAL_REFERENT'
+        : 'ARTIFACT'
+      : position === 'subject'
+        ? 'ARTIFACT'
+        : 'PHYSICAL_REFERENT';
+  if (reference.kind !== expectedKind) {
+    return [
+      `${predicate} requires ${position} endpoint kind ${expectedKind}; received ${reference.kind}.`,
+    ];
+  }
+  return validateKnowledgeGraphEndpoint(reference).map(
+    (error) => `${label}: ${error}`,
+  );
+}
+
+function validateArtifactReference(
+  reference: EngineeringRelationshipEndpoint,
+  label: string,
+): readonly string[] {
+  if (isKnowledgeGraphEndpoint(reference)) {
+    return [`${label} must be an artifact reference for DEPENDENCY.`];
   }
   if (reference.kind === 'identity') {
     return validateEngineeringArtifactIdentity(reference.identity).map(
@@ -473,8 +532,22 @@ function validateReference(
 }
 
 function canonicalReference(
-  reference: EngineeringArtifactReference,
-): EngineeringArtifactReference {
+  reference: EngineeringRelationshipEndpoint,
+): Record<string, unknown> {
+  if (isKnowledgeGraphEndpoint(reference)) {
+    return {
+      kind: reference.kind,
+      identity:
+        reference.kind === 'ARTIFACT'
+          ? { id: (reference.identity as EngineeringArtifactIdentity).id }
+          : {
+              identityKind: (reference.identity as PhysicalReferentIdentity)
+                .identityKind,
+              canonicalIdentity: (reference.identity as PhysicalReferentIdentity)
+                .canonicalIdentity,
+            },
+    };
+  }
   if (reference.kind === 'identity') {
     return { kind: 'identityId', identityId: reference.identity.id };
   }
@@ -489,9 +562,21 @@ function canonicalReference(
 }
 
 function cloneReference(
-  reference: EngineeringArtifactReference,
-): EngineeringArtifactReference {
-  return { ...canonicalReference(reference) };
+  reference: EngineeringRelationshipEndpoint,
+): EngineeringRelationshipEndpoint {
+  if (isKnowledgeGraphEndpoint(reference)) {
+    return {
+      kind: reference.kind,
+      identity: { ...reference.identity },
+    } as KnowledgeGraphEndpoint;
+  }
+  return { ...canonicalReference(reference) } as EngineeringArtifactReference;
+}
+
+function isKnowledgeGraphEndpoint(
+  reference: EngineeringRelationshipEndpoint,
+): reference is KnowledgeGraphEndpoint {
+  return reference.kind === 'ARTIFACT' || reference.kind === 'PHYSICAL_REFERENT';
 }
 
 function canonicalEvidenceReferences(

@@ -6,6 +6,8 @@ import {
   engineeringKnowledgeGraphFingerprint,
   createEngineeringKnowledgePackageFromPrimitive,
   createEngineeringKnowledgeRegistry,
+  knowledgeGraphEndpoint,
+  physicalReferentIdentity,
   reconstructEngineeringRelationship,
   relationshipDeclaration,
   relationshipFact,
@@ -34,6 +36,18 @@ const packageFixture = createEngineeringKnowledgePackageFromPrimitive(
 const rowResult = packageFixture.identity.id;
 const rowCalculation = packageFixture.provenance.calculation.id;
 const registry = createEngineeringKnowledgeRegistry().register(packageFixture);
+const rowResultEndpoint = knowledgeGraphEndpoint({
+  kind: 'ARTIFACT',
+  status: 'RESOLVED',
+  identity: packageFixture.identity,
+});
+const physicalEndpoint = knowledgeGraphEndpoint({
+  kind: 'PHYSICAL_REFERENT',
+  status: 'RESOLVED',
+  identity: physicalReferentIdentity({
+    referentKey: 'governed:REL:PHYSICAL-001',
+  }),
+});
 
 const fact = (subject = rowResult, object = rowCalculation) =>
   relationshipFact({
@@ -449,4 +463,147 @@ test('artifact revision identities remain distinct relationship endpoints', () =
     object: { kind: 'identityId', identityId: rowCalculation },
   });
   assert.notEqual(first.fingerprint, second.fingerprint);
+});
+
+test('Release B predicates enforce their exact endpoint directions', () => {
+  const describedBy = relationshipFact({
+    subject: physicalEndpoint,
+    predicate: 'DESCRIBED_BY',
+    object: rowResultEndpoint,
+  });
+  const calculatedFor = relationshipFact({
+    subject: rowResultEndpoint,
+    predicate: 'CALCULATED_FOR',
+    object: physicalEndpoint,
+  });
+
+  assert.equal(describedBy.predicate, 'DESCRIBED_BY');
+  assert.equal(calculatedFor.predicate, 'CALCULATED_FOR');
+  assert.throws(
+    () =>
+      relationshipFact({
+        subject: rowResultEndpoint,
+        predicate: 'DESCRIBED_BY',
+        object: physicalEndpoint,
+      }),
+    /DESCRIBED_BY requires subject endpoint kind PHYSICAL_REFERENT/,
+  );
+  assert.throws(
+    () =>
+      relationshipFact({
+        subject: physicalEndpoint,
+        predicate: 'CALCULATED_FOR',
+        object: rowResultEndpoint,
+      }),
+    /CALCULATED_FOR requires subject endpoint kind ARTIFACT/,
+  );
+});
+
+test('Release B predicates are governed and predicate-sensitive in fact identity', () => {
+  const describedBy = relationshipFact({
+    subject: physicalEndpoint,
+    predicate: 'DESCRIBED_BY',
+    object: rowResultEndpoint,
+  });
+  const calculatedFor = relationshipFact({
+    subject: rowResultEndpoint,
+    predicate: 'CALCULATED_FOR',
+    object: physicalEndpoint,
+  });
+
+  assert.notEqual(describedBy.fingerprint, calculatedFor.fingerprint);
+  assert.throws(
+    () =>
+      relationshipFact({
+        subject: rowResultEndpoint,
+        predicate: 'VERIFIED_BY',
+        object: physicalEndpoint,
+      }),
+    /Unsupported relationship predicate: VERIFIED_BY/,
+  );
+});
+
+test('Release B declarations remain generic, historical, and evidence-separated', () => {
+  const releaseBFact = relationshipFact({
+    subject: physicalEndpoint,
+    predicate: 'DESCRIBED_BY',
+    object: rowResultEndpoint,
+  });
+  const makeReleaseBDeclaration = (overrides = {}) =>
+    declaration({
+      fact: releaseBFact,
+      evidenceReferences: [rowSource],
+      ...overrides,
+    });
+  const affirm = makeReleaseBDeclaration();
+  const duplicate = makeReleaseBDeclaration();
+  const deny = makeReleaseBDeclaration({
+    assertionDisposition: 'DENY',
+    origin: 'IMPORTED',
+    actor: null,
+  });
+  const graph = resolveEngineeringKnowledgeGraph(registry, [
+    duplicate,
+    affirm,
+    deny,
+  ]);
+
+  assert.equal(graph.declarations.length, 2);
+  const conflicting = reconstructEngineeringRelationship(
+    registry,
+    graph,
+    releaseBFact,
+    { queryTime: '2026-08-22T12:00:00Z', applicabilityContext: 'PROJECT:REL' },
+    resolvedEvidence,
+  );
+  assert.equal(conflicting.status, 'CONFLICTING');
+  assert.equal(conflicting.evidence[0].status, 'RESOLVED');
+  assert.equal(conflicting.declarations.length, 2);
+
+  const historical = makeReleaseBDeclaration({
+    temporalValidity: {
+      validFrom: '2025-01-01T00:00:00Z',
+      validTo: '2025-12-31T23:59:59Z',
+      recordedAt: '2025-01-01T00:00:00Z',
+    },
+  });
+  const historicalGraph = resolveEngineeringKnowledgeGraph(registry, [
+    historical,
+  ]);
+  const historicalResult = reconstructEngineeringRelationship(
+    registry,
+    historicalGraph,
+    releaseBFact,
+    { queryTime: '2026-08-22T12:00:00Z', applicabilityContext: 'PROJECT:REL' },
+    resolvedEvidence,
+  );
+  assert.equal(historicalResult.status, 'HISTORICAL');
+});
+
+test('Release B AI proposals remain declarations without structural authority', () => {
+  const releaseBFact = relationshipFact({
+    subject: rowResultEndpoint,
+    predicate: 'CALCULATED_FOR',
+    object: physicalEndpoint,
+  });
+  const candidate = declaration({
+    fact: releaseBFact,
+    origin: 'AI_PROPOSAL',
+    actor: null,
+  });
+  const graph = resolveEngineeringKnowledgeGraph(registry, [candidate]);
+  const result = reconstructEngineeringRelationship(
+    registry,
+    graph,
+    releaseBFact,
+    { queryTime: '2026-08-22T12:00:00Z', applicabilityContext: 'PROJECT:REL' },
+  );
+
+  assert.equal(result.status, 'UNVERIFIED');
+  assert.equal(result.declarations[0].origin, 'AI_PROPOSAL');
+  assert.equal(graph.declarations.length, 1);
+  assert.equal(
+    graph.edges.some((edge) => edge.predicate === 'CALCULATED_FOR'),
+    false,
+  );
 });

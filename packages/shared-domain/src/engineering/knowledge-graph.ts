@@ -17,10 +17,13 @@ import type { EngineeringKnowledgeRegistry } from './knowledge-package-registry.
 import {
   canonicalizeRelationshipDeclarations,
   reconstructRelationship,
+  type EngineeringRelationshipEndpoint,
   type RelationshipDeclaration,
   type RelationshipQueryContext,
   type RelationshipReconstruction,
 } from './relationship-declaration.ts';
+import { validateKnowledgeGraphEndpoint } from './graph-endpoint.ts';
+import type { PhysicalReferentIdentity } from './physical-referent-identity.ts';
 
 export const ENGINEERING_KNOWLEDGE_GRAPH_FORMAT_VERSION = '1';
 
@@ -45,7 +48,10 @@ export type EngineeringArtifactResolutionStatus =
  * KnowledgeGraph. Additional predicates require separately authorized
  * endpoint and semantic contracts.
  */
-export type EngineeringKnowledgeGraphPredicate = 'DEPENDENCY';
+export type EngineeringKnowledgeGraphPredicate =
+  | 'DEPENDENCY'
+  | 'DESCRIBED_BY'
+  | 'CALCULATED_FOR';
 
 /**
  * A resolvable reference to an engineering artifact:
@@ -177,6 +183,10 @@ export function resolveEngineeringKnowledgeGraph(
     }
   }
   const canonicalDeclarations = canonicalizeRelationshipDeclarations(declarations);
+  // The legacy edge projection has no query-time context. Keep its existing
+  // DEPENDENCY-only behavior; Release B predicates remain canonical,
+  // reconstructable declarations until a query-context projection contract is
+  // authorized. This avoids inferring current truth from historical records.
   for (const declaration of canonicalDeclarations) {
     if (
       declaration.assertionDisposition !== 'AFFIRM' ||
@@ -461,7 +471,8 @@ export function reconstructEngineeringRelationship(
   return reconstructRelationship(
     fact,
     canonicalDeclarations,
-    (reference) => resolveEngineeringArtifactReference(registry, reference).status,
+    (reference) =>
+      resolveEngineeringRelationshipEndpoint(registry, reference),
     queryContext,
     evidenceAdapter,
   );
@@ -717,17 +728,55 @@ function parseBaseIdType(baseId: string): EngineeringArtifactType | null {
 }
 
 function graphNodeIdOfReference(
-  reference: EngineeringArtifactReference,
+  reference: EngineeringRelationshipEndpoint,
 ): string | null {
+  if (reference.kind === 'ARTIFACT') {
+    return (reference.identity as EngineeringArtifactIdentity).id;
+  }
+  if (reference.kind === 'PHYSICAL_REFERENT') {
+    return `PHYSICAL_REFERENT-${
+      (reference.identity as PhysicalReferentIdentity).canonicalIdentity
+    }`;
+  }
   if (reference.kind === 'identityId') {
     return reference.identityId;
   }
   if (reference.kind === 'identity') {
     return reference.identity.id;
   }
-  return reference.version === undefined
-    ? reference.baseId
-    : engineeringArtifactVersionOf(reference.baseId, reference.version);
+  const artifactReference = reference as Extract<
+    EngineeringArtifactReference,
+    { readonly kind: 'baseId' }
+  >;
+  return artifactReference.version === undefined
+    ? artifactReference.baseId
+    : engineeringArtifactVersionOf(
+        artifactReference.baseId,
+        artifactReference.version,
+      );
+}
+
+function resolveEngineeringRelationshipEndpoint(
+  registry: EngineeringKnowledgeRegistry,
+  reference: EngineeringRelationshipEndpoint,
+): EngineeringArtifactResolutionStatus {
+  if (reference.kind === 'ARTIFACT' || reference.kind === 'PHYSICAL_REFERENT') {
+    const errors = validateKnowledgeGraphEndpoint(reference);
+    if (errors.length > 0) {
+      return 'INVALID';
+    }
+    if (reference.kind === 'PHYSICAL_REFERENT') {
+      return 'RESOLVED';
+    }
+    return resolveEngineeringArtifactReference(registry, {
+      kind: 'identity',
+      identity: reference.identity as EngineeringArtifactIdentity,
+    }).status;
+  }
+  return resolveEngineeringArtifactReference(
+    registry,
+    reference as EngineeringArtifactReference,
+  ).status;
 }
 
 function deepFreeze<T>(value: T): T {
