@@ -21,6 +21,7 @@ import {
 } from './geometry-reference.ts';
 import {
   type EngineeringRepresentationSemanticMetadata,
+  type EngineeringRepresentationSemanticMetadataInput,
   engineeringRepresentationSemanticMetadata,
   validateEngineeringRepresentationSemanticMetadata,
 } from './representation-semantics.ts';
@@ -89,7 +90,7 @@ export interface RelationshipDeclarationInput
   readonly fact: RelationshipFactInput;
   readonly geometryReference?: GeometryReference | null;
   readonly geometryMetadata?: GeometrySemanticMetadata | null;
-  readonly representationMetadata?: EngineeringRepresentationSemanticMetadata | null;
+  readonly representationMetadata?: EngineeringRepresentationSemanticMetadataInput | null;
 }
 
 export interface RelationshipFactInput
@@ -755,6 +756,7 @@ function canonicalRepresentationMetadata(
   return {
     representationKind: metadata.representationKind,
     semanticRole: metadata.semanticRole,
+    issue: metadata.issue,
   };
 }
 
