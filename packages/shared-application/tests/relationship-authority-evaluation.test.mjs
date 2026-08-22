@@ -478,3 +478,113 @@ test('ambiguous endpoint query keeps all projection dimensions unknown', () => {
   assert.deepEqual(projection.authority.statuses, []);
   assert.deepEqual(projection.trust.statuses, []);
 });
+
+test('projection ordering and diagnostics are independent of insertion order', () => {
+  const first = declaration({
+    origin: 'HUMAN',
+    actor: 'engineer-z',
+    evidenceReferences: [secondSourceReference, sourceReference],
+  });
+  const second = declaration({
+    origin: 'HUMAN',
+    actor: 'engineer-a',
+    evidenceReferences: [sourceReference],
+  });
+  const forward = createEngineeringRelationshipQuery(registry, [
+    second,
+    first,
+  ]).evaluateAuthority(fact, queryContext, adapter(), subject);
+  const reverse = createEngineeringRelationshipQuery(registry, [
+    first,
+    second,
+  ]).evaluateAuthority(fact, queryContext, adapter(), subject);
+
+  assert.deepEqual(forward, reverse);
+  assert.deepEqual(
+    forward.evaluations.map((evaluation) => evaluation.declarationFingerprint),
+    [...forward.evaluations]
+      .map((evaluation) => evaluation.declarationFingerprint)
+      .sort(),
+  );
+  assert.deepEqual(
+    forward.evaluations[0].diagnostics,
+    [...forward.evaluations[0].diagnostics].sort(),
+  );
+  assert.deepEqual(
+    forward.reasonCodes,
+    [...forward.reasonCodes].sort(),
+  );
+  assert.deepEqual(
+    forward.diagnostics,
+    [...forward.diagnostics].sort(),
+  );
+});
+
+test('projection preserves uncertainty dimensions without fallback selection', () => {
+  const invalid = createEngineeringRelationshipQuery(registry, [
+    declaration(),
+  ]).evaluateAuthority(
+    fact,
+    { queryTime: 'invalid', applicabilityContext: 'PROJECT:REL' },
+    adapter(),
+    subject,
+  );
+  const ambiguousRegistry = registry.register(
+    createEngineeringKnowledgePackageFromPrimitive(
+      rowWeightPrimitive({ volumeM3: 1, densityKgM3: 2000 }),
+    ),
+  );
+  const ambiguousFact = relationshipFact({
+    subject: physicalEndpoint,
+    predicate: 'DESCRIBED_BY',
+    object: knowledgeGraphEndpoint({
+      kind: 'ARTIFACT',
+      status: 'RESOLVED',
+      identity: packageFixture.provenance.sources[0],
+    }),
+  });
+  const ambiguous = createEngineeringRelationshipQuery(ambiguousRegistry, [
+    declaration({ fact: ambiguousFact }),
+  ]).evaluateAuthority(
+    ambiguousFact,
+    queryContext,
+    adapter(),
+    subject,
+  );
+
+  assert.equal(invalid.reconstruction.status, 'INVALID');
+  assert.equal(ambiguous.reconstruction.status, 'AMBIGUOUS');
+  for (const projection of [invalid, ambiguous]) {
+    assert.deepEqual(projection.evidence, {
+      presence: 'UNKNOWN',
+      resolution: 'UNKNOWN',
+      complete: false,
+    });
+    assert.deepEqual(projection.authority.statuses, []);
+    assert.deepEqual(projection.trust.statuses, []);
+    assert.deepEqual(projection.evaluations, []);
+    assert.deepEqual(projection.historicalEvaluations, []);
+  }
+});
+
+test('query projections and nested state are immutable', () => {
+  const projection = createEngineeringRelationshipQuery(registry, [
+    declaration(),
+  ]).evaluateAuthority(fact, queryContext, adapter(), subject);
+
+  assert.equal(Object.isFrozen(projection), true);
+  assert.equal(Object.isFrozen(projection.evaluations), true);
+  assert.equal(Object.isFrozen(projection.evaluations[0]), true);
+  assert.equal(Object.isFrozen(projection.evaluations[0].evidenceResolution), true);
+  assert.equal(Object.isFrozen(projection.evidence), true);
+  assert.equal(Object.isFrozen(projection.authority), true);
+  assert.equal(Object.isFrozen(projection.trust), true);
+  assert.equal(Object.isFrozen(projection.reasonCodes), true);
+  assert.equal(Object.isFrozen(projection.diagnostics), true);
+  assert.throws(() => {
+    projection.evaluations.push(projection.evaluations[0]);
+  }, TypeError);
+  assert.throws(() => {
+    projection.evaluations[0].evidenceResolution.status = 'NOT_FOUND';
+  }, TypeError);
+});

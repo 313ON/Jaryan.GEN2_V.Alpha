@@ -98,7 +98,7 @@ export function createRelationshipAuthorityEvaluationAdapter(
         relationshipFingerprint: input.declaration.fact.fingerprint,
         structuralStatus: input.structuralStatus,
         evidenceReferenceCount: input.declaration.evidenceReferences.length,
-        evidenceResolution,
+        evidenceResolution: Object.freeze({ ...evidenceResolution }),
         authoritySubjectId: input.authoritySubject?.authoritySubjectId ?? null,
         authoritySubjectRevision:
           input.authoritySubject?.authoritySubjectRevision ?? null,
@@ -146,8 +146,8 @@ export function createRelationshipAuthorityEvaluationAdapter(
         ...base,
         authorityStatus: trust.authorityStatus,
         trustStatus: trust.trustStatus,
-        reasonCodes: Object.freeze([...trust.reasons]),
-        diagnostics: Object.freeze(diagnostics),
+        reasonCodes: Object.freeze(uniqueSorted(trust.reasons)),
+        diagnostics: Object.freeze(uniqueSorted(diagnostics)),
       });
     },
   });
@@ -238,29 +238,39 @@ export function projectRelationshipAuthorityState(
   evaluations: readonly RelationshipAuthorityEvaluation[],
   historicalEvaluations: readonly RelationshipAuthorityEvaluation[],
 ): RelationshipAuthorityProjection {
+  const orderedEvaluations = orderEvaluations(evaluations);
+  const orderedHistoricalEvaluations = orderEvaluations(historicalEvaluations);
   return Object.freeze({
     reconstruction,
-    evaluations: Object.freeze([...evaluations]),
-    historicalEvaluations: Object.freeze([...historicalEvaluations]),
-    evidence: projectEvidence(evaluations),
-    historicalEvidence: projectEvidence(historicalEvaluations),
-    authority: projectAuthority(evaluations),
-    historicalAuthority: projectAuthority(historicalEvaluations),
-    trust: projectTrust(evaluations),
-    historicalTrust: projectTrust(historicalEvaluations),
+    evaluations: Object.freeze(orderedEvaluations),
+    historicalEvaluations: Object.freeze(orderedHistoricalEvaluations),
+    evidence: projectEvidence(orderedEvaluations),
+    historicalEvidence: projectEvidence(orderedHistoricalEvaluations),
+    authority: projectAuthority(orderedEvaluations),
+    historicalAuthority: projectAuthority(orderedHistoricalEvaluations),
+    trust: projectTrust(orderedEvaluations),
+    historicalTrust: projectTrust(orderedHistoricalEvaluations),
     conflict: reconstruction.status === 'CONFLICTING',
     historical: reconstruction.historicalDeclarations.length > 0,
     reasonCodes: Object.freeze(uniqueSorted(
-      [...evaluations, ...historicalEvaluations].flatMap(
+      [...orderedEvaluations, ...orderedHistoricalEvaluations].flatMap(
         (evaluation) => evaluation.reasonCodes,
       ),
     )),
     diagnostics: Object.freeze(uniqueSorted(
-      [...evaluations, ...historicalEvaluations].flatMap(
+      [...orderedEvaluations, ...orderedHistoricalEvaluations].flatMap(
         (evaluation) => evaluation.diagnostics,
       ),
     )),
   });
+}
+
+function orderEvaluations(
+  evaluations: readonly RelationshipAuthorityEvaluation[],
+): RelationshipAuthorityEvaluation[] {
+  return [...evaluations].sort((left, right) =>
+    left.declarationFingerprint.localeCompare(right.declarationFingerprint),
+  );
 }
 
 function projectEvidence(
