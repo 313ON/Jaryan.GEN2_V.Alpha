@@ -9,16 +9,25 @@ import {
 import type { PhysicalReferentIdentity } from './physical-referent-identity.ts';
 import {
   type TemporalValidity,
+  type GeometrySemanticMetadata,
+  geometrySemanticMetadata,
+  validateGeometrySemanticMetadata,
   validateTemporalValidity,
 } from './semantic-backbone.ts';
+import {
+  type GeometryReference,
+  geometryReference,
+  validateGeometryReference,
+} from './geometry-reference.ts';
 
 export type EngineeringRelationshipPredicate =
   | 'DEPENDENCY'
   | 'DESCRIBED_BY'
-  | 'CALCULATED_FOR';
+  | 'CALCULATED_FOR'
+  | 'REPRESENTED_BY';
 
 export const ENGINEERING_RELATIONSHIP_PREDICATES: readonly EngineeringRelationshipPredicate[] =
-  ['DEPENDENCY', 'DESCRIBED_BY', 'CALCULATED_FOR'];
+  ['DEPENDENCY', 'DESCRIBED_BY', 'CALCULATED_FOR', 'REPRESENTED_BY'];
 
 export type RelationshipAssertionDisposition = 'AFFIRM' | 'DENY';
 
@@ -56,13 +65,20 @@ export interface RelationshipDeclaration {
   readonly origin: RelationshipDeclarationOrigin;
   readonly actor: string | null;
   readonly evidenceReferences: readonly EngineeringArtifactIdentity[];
+  readonly geometryReference: GeometryReference | null;
+  readonly geometryMetadata: GeometrySemanticMetadata | null;
   readonly supersedes: readonly string[];
   readonly fingerprint: string;
 }
 
 export interface RelationshipDeclarationInput
-  extends Omit<RelationshipDeclaration, 'fact' | 'fingerprint'> {
+  extends Omit<
+    RelationshipDeclaration,
+    'fact' | 'fingerprint' | 'geometryReference' | 'geometryMetadata'
+  > {
   readonly fact: RelationshipFactInput;
+  readonly geometryReference?: GeometryReference | null;
+  readonly geometryMetadata?: GeometrySemanticMetadata | null;
 }
 
 export interface RelationshipFactInput
@@ -125,6 +141,14 @@ export function relationshipDeclaration(
     throw new Error(`Invalid relationship declaration: ${errors.join('; ')}`);
   }
   const evidenceReferences = canonicalEvidenceReferences(input.evidenceReferences);
+  const geometryReferenceValue =
+    input.geometryReference === null || input.geometryReference === undefined
+      ? null
+      : geometryReference(input.geometryReference);
+  const geometryMetadataValue =
+    input.geometryMetadata === null || input.geometryMetadata === undefined
+      ? null
+      : geometrySemanticMetadata(input.geometryMetadata);
   const supersedes = canonicalStrings(input.supersedes);
   const fact = relationshipFact(input.fact);
   const declaration = {
@@ -135,6 +159,8 @@ export function relationshipDeclaration(
     origin: input.origin,
     actor: input.actor,
     evidenceReferences,
+    geometryReference: geometryReferenceValue,
+    geometryMetadata: geometryMetadataValue,
     supersedes,
     fingerprint: relationshipDeclarationFingerprint({
       fact,
@@ -144,6 +170,8 @@ export function relationshipDeclaration(
       origin: input.origin,
       actor: input.actor,
       evidenceReferences,
+      geometryReference: geometryReferenceValue,
+      geometryMetadata: geometryMetadataValue,
       supersedes,
     }),
   } satisfies RelationshipDeclaration;
@@ -224,6 +252,25 @@ export function validateRelationshipDeclaration(
       );
     });
   }
+  if (input.geometryReference !== null && input.geometryReference !== undefined) {
+    if (input.fact.predicate !== 'REPRESENTED_BY') {
+      errors.push('Geometry reference is only valid for REPRESENTED_BY declarations.');
+    }
+    errors.push(...validateGeometryReference(input.geometryReference));
+  }
+  if (input.geometryMetadata !== null && input.geometryMetadata !== undefined) {
+    if (input.fact.predicate !== 'REPRESENTED_BY') {
+      errors.push('Geometry metadata is only valid for REPRESENTED_BY declarations.');
+    }
+    if (
+      typeof input.geometryMetadata !== 'object' ||
+      input.geometryMetadata === null
+    ) {
+      errors.push('Geometry metadata must be provided as an object.');
+    } else {
+      errors.push(...validateGeometrySemanticMetadata(input.geometryMetadata));
+    }
+  }
   if (!Array.isArray(input.supersedes)) {
     errors.push('Supersedes must be an array.');
   } else {
@@ -252,7 +299,7 @@ export function relationshipFactFingerprint(
 export function relationshipDeclarationFingerprint(
   declaration: Omit<RelationshipDeclaration, 'fingerprint'>,
 ): string {
-  return contentFingerprint({
+  const assertedContent: Record<string, unknown> = {
     kind: 'ENGINEERING_RELATIONSHIP_DECLARATION',
     fact: {
       subject: canonicalReference(declaration.fact.subject),
@@ -272,7 +319,18 @@ export function relationshipDeclarationFingerprint(
       (reference) => reference.id,
     ),
     supersedes: canonicalStrings(declaration.supersedes),
-  });
+  };
+  if (declaration.geometryReference !== null && declaration.geometryReference !== undefined) {
+    assertedContent.geometryReference = canonicalGeometryReference(
+      declaration.geometryReference,
+    );
+  }
+  if (declaration.geometryMetadata !== null && declaration.geometryMetadata !== undefined) {
+    assertedContent.geometryMetadata = canonicalGeometryMetadata(
+      declaration.geometryMetadata,
+    );
+  }
+  return contentFingerprint(assertedContent);
 }
 
 export function canonicalizeRelationshipDeclarations(
@@ -298,6 +356,8 @@ export function canonicalizeRelationshipDeclarations(
       origin: declaration.origin,
       actor: declaration.actor,
       evidenceReferences: declaration.evidenceReferences,
+      geometryReference: declaration.geometryReference,
+      geometryMetadata: declaration.geometryMetadata,
       supersedes: declaration.supersedes,
     });
     if (declaration.fingerprint !== canonical.fingerprint) {
@@ -511,6 +571,10 @@ function validateRelationshipEndpoint(
       ? position === 'subject'
         ? 'PHYSICAL_REFERENT'
         : 'ARTIFACT'
+      : predicate === 'REPRESENTED_BY'
+        ? position === 'subject'
+          ? 'PHYSICAL_REFERENT'
+          : 'ARTIFACT'
       : position === 'subject'
         ? 'ARTIFACT'
         : 'PHYSICAL_REFERENT';
@@ -611,6 +675,36 @@ function canonicalEvidenceReferences(
 
 function canonicalStrings(values: readonly string[]): readonly string[] {
   return [...new Set(values)].sort();
+}
+
+function canonicalGeometryReference(
+  reference: GeometryReference,
+): Record<string, unknown> {
+  return {
+    referenceKey: reference.referenceKey,
+    resolution: reference.resolution,
+  };
+}
+
+function canonicalGeometryMetadata(
+  metadata: GeometrySemanticMetadata,
+): Record<string, unknown> {
+  return {
+    representationType: metadata.representationType,
+    state: metadata.state,
+    coordinateReference: metadata.coordinateReference,
+    units: metadata.units,
+    uncertainty: metadata.uncertainty,
+    temporalValidity: {
+      validFrom: metadata.temporalValidity.validFrom,
+      validTo: metadata.temporalValidity.validTo,
+      recordedAt: metadata.temporalValidity.recordedAt,
+    },
+    evidenceReference:
+      metadata.evidenceReference === null
+        ? null
+        : { id: metadata.evidenceReference.id },
+  };
 }
 
 function isIsoTimestamp(value: unknown): value is string {

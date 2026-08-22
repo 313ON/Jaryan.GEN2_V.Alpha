@@ -6,6 +6,8 @@ import {
   engineeringKnowledgeGraphFingerprint,
   createEngineeringKnowledgePackageFromPrimitive,
   createEngineeringKnowledgeRegistry,
+  geometryReference,
+  geometrySemanticMetadata,
   knowledgeGraphEndpoint,
   physicalReferentIdentity,
   reconstructEngineeringRelationship,
@@ -496,6 +498,164 @@ test('Release B predicates enforce their exact endpoint directions', () => {
         object: rowResultEndpoint,
       }),
     /CALCULATED_FOR requires subject endpoint kind ARTIFACT/,
+  );
+});
+
+test('Phase 15 REPRESENTED_BY enforces physical-to-artifact direction', () => {
+  const representedBy = relationshipFact({
+    subject: physicalEndpoint,
+    predicate: 'REPRESENTED_BY',
+    object: rowResultEndpoint,
+  });
+
+  assert.equal(representedBy.predicate, 'REPRESENTED_BY');
+  assert.throws(
+    () =>
+      relationshipFact({
+        subject: rowResultEndpoint,
+        predicate: 'REPRESENTED_BY',
+        object: physicalEndpoint,
+      }),
+    /REPRESENTED_BY requires subject endpoint kind PHYSICAL_REFERENT/,
+  );
+  assert.throws(
+    () =>
+      relationshipFact({
+        subject: physicalEndpoint,
+        predicate: 'REPRESENTED_BY',
+        object: physicalEndpoint,
+      }),
+    /REPRESENTED_BY requires object endpoint kind ARTIFACT/,
+  );
+  assert.throws(
+    () =>
+      relationshipFact({
+        subject: physicalEndpoint,
+        predicate: 'VERIFIED_BY',
+        object: rowResultEndpoint,
+      }),
+    /Unsupported relationship predicate: VERIFIED_BY/,
+  );
+  assert.throws(
+    () =>
+      declaration({
+        fact: relationshipFact({
+          subject: physicalEndpoint,
+          predicate: 'DESCRIBED_BY',
+          object: rowResultEndpoint,
+        }),
+        geometryMetadata: {
+          representationType: 'DESIGN',
+          state: 'DESIGNED',
+          coordinateReference: null,
+          units: null,
+          uncertainty: 'UNKNOWN',
+          temporalValidity: {
+            validFrom: '2026-01-01T00:00:00Z',
+            validTo: '2026-12-31T23:59:59Z',
+            recordedAt: '2026-08-22T10:00:00Z',
+          },
+          evidenceReference: null,
+        },
+      }),
+    /Geometry metadata is only valid for REPRESENTED_BY declarations/,
+  );
+});
+
+test('Phase 15 geometry metadata is declaration-level and fingerprint-distinct', () => {
+  const representedFact = relationshipFact({
+    subject: physicalEndpoint,
+    predicate: 'REPRESENTED_BY',
+    object: rowResultEndpoint,
+  });
+  const geometryMetadata = geometrySemanticMetadata({
+    representationType: 'DESIGN',
+    state: 'DESIGNED',
+    coordinateReference: 'EPSG:4326',
+    units: 'm',
+    uncertainty: 'ESTIMATED',
+    temporalValidity: {
+      validFrom: '2026-01-01T00:00:00Z',
+      validTo: '2026-12-31T23:59:59Z',
+      recordedAt: '2026-08-22T10:00:00Z',
+    },
+    evidenceReference: rowSource,
+  });
+  const geometryReferenceValue = geometryReference({
+    referenceKey: 'external:geometry:REL-001',
+    resolution: 'UNRESOLVED',
+  });
+  const first = declaration({
+    fact: representedFact,
+    geometryReference: geometryReferenceValue,
+    geometryMetadata,
+  });
+  const second = declaration({
+    fact: representedFact,
+    geometryReference: geometryReferenceValue,
+    geometryMetadata: {
+      ...geometryMetadata,
+      uncertainty: 'UNCERTAIN',
+    },
+  });
+  const withoutGeometry = declaration({ fact: representedFact });
+
+  assert.equal(first.fact.fingerprint, second.fact.fingerprint);
+  assert.equal(first.fact.fingerprint, withoutGeometry.fact.fingerprint);
+  assert.notEqual(first.fingerprint, second.fingerprint);
+  assert.notEqual(first.fingerprint, withoutGeometry.fingerprint);
+  assert.equal(first.geometryReference.resolution, 'UNRESOLVED');
+  assert.equal(first.geometryMetadata.representationType, 'DESIGN');
+  assert.equal(Object.isFrozen(first.geometryReference), true);
+  assert.equal(Object.isFrozen(first.geometryMetadata), true);
+  assert.equal(Object.isFrozen(first.geometryMetadata.temporalValidity), true);
+});
+
+test('Phase 15 REPRESENTED_BY reconstructs deterministically without geometry authority', () => {
+  const representedFact = relationshipFact({
+    subject: physicalEndpoint,
+    predicate: 'REPRESENTED_BY',
+    object: rowResultEndpoint,
+  });
+  const candidate = declaration({
+    fact: representedFact,
+    origin: 'AI_PROPOSAL',
+    actor: null,
+    geometryReference: geometryReference({
+      referenceKey: 'external:geometry:REL-UNRESOLVED',
+      resolution: 'UNRESOLVED',
+    }),
+    geometryMetadata: geometrySemanticMetadata({
+      representationType: 'IMPORTED',
+      state: 'UNKNOWN',
+      coordinateReference: null,
+      units: 'm',
+      uncertainty: 'UNKNOWN',
+      temporalValidity: {
+        validFrom: '2026-01-01T00:00:00Z',
+        validTo: '2026-12-31T23:59:59Z',
+        recordedAt: '2026-08-22T10:00:00Z',
+      },
+      evidenceReference: null,
+    }),
+  });
+  const result = reconstruct(
+    registry,
+    representedFact,
+    [candidate],
+    { queryTime: '2026-08-22T12:00:00Z', applicabilityContext: 'PROJECT:REL' },
+    resolvedEvidence,
+  );
+
+  assert.equal(result.status, 'UNVERIFIED');
+  assert.equal(result.declarations.length, 1);
+  assert.equal(result.declarations[0].geometryReference.resolution, 'UNRESOLVED');
+  assert.equal(result.declarations[0].geometryMetadata.uncertainty, 'UNKNOWN');
+  assert.equal(
+    resolveEngineeringKnowledgeGraph(registry, [candidate]).edges.some(
+      (edge) => edge.predicate === 'REPRESENTED_BY',
+    ),
+    false,
   );
 });
 

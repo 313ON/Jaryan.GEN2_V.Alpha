@@ -51,7 +51,8 @@ export type EngineeringArtifactResolutionStatus =
 export type EngineeringKnowledgeGraphPredicate =
   | 'DEPENDENCY'
   | 'DESCRIBED_BY'
-  | 'CALCULATED_FOR';
+  | 'CALCULATED_FOR'
+  | 'REPRESENTED_BY';
 
 /**
  * A resolvable reference to an engineering artifact:
