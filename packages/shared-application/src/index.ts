@@ -13,3 +13,4 @@ export * from './sa-bench-001.ts';
 export * from './result-provenance.ts';
 export * from './benchmark-registry.ts';
 export * from './engineering-knowledge-query.ts';
+export * from './engineering-relationship-query.ts';
