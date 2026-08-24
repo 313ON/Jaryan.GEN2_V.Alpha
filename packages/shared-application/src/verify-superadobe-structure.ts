@@ -16,12 +16,17 @@ import {
 } from '@jaryan/shared-domain';
 import type { TraceabilityLink } from './traceability.ts';
 import { buildTraceabilityLink } from './traceability.ts';
+import {
+  captureDurableSnapshotsFromPrimitiveExecution,
+} from './durable-calculation-snapshot.ts';
+import type { DurableCalculationSnapshotStore } from '@jaryan/shared-infrastructure';
 
 export interface SuperAdobeVerificationRequest {
   readonly projectId: string;
   readonly inputs: SuperAdobeGeometryInputs;
   readonly lateralSeismicDemandKn?: number;
   readonly overturningMomentKnM?: number;
+  readonly durableSnapshotStore?: DurableCalculationSnapshotStore;
 }
 
 export interface SuperAdobeVerificationResult {
@@ -57,8 +62,16 @@ function linkFor(
 }
 
 export function verifySuperAdobeStructure(
+  request: SuperAdobeVerificationRequest & {
+    readonly durableSnapshotStore: DurableCalculationSnapshotStore;
+  },
+): Promise<SuperAdobeVerificationResult | null>;
+export function verifySuperAdobeStructure(
   request: SuperAdobeVerificationRequest,
-): SuperAdobeVerificationResult | null {
+): SuperAdobeVerificationResult | null;
+export function verifySuperAdobeStructure(
+  request: SuperAdobeVerificationRequest,
+): Promise<SuperAdobeVerificationResult | null> | SuperAdobeVerificationResult | null {
   const geometryResult = calculateSuperAdobeGeometry(request.inputs);
   if (!geometryResult.ok) {
     return null;
@@ -155,7 +168,7 @@ export function verifySuperAdobeStructure(
     linkFor(primitive, ['GEO-001', 'MAT-001', 'LC-001']),
   );
 
-  return {
+  const result: SuperAdobeVerificationResult = {
     id,
     projectId: request.projectId,
     system: 'superadobe',
@@ -167,4 +180,15 @@ export function verifySuperAdobeStructure(
     status: anyFailed ? 'FAILED' : humanReviewRequired ? 'REVIEW_REQUIRED' : 'SCREENED',
     calculatedAt,
   };
+  if (request.durableSnapshotStore === undefined) return result;
+  return captureDurableSnapshotsFromPrimitiveExecution(
+    result.primitives.filter((primitive) => Object.keys(primitive.inputs).length > 0),
+    {
+      store: request.durableSnapshotStore,
+      executionReference: result.id,
+      snapshotIdPrefix: result.id,
+      projectContext: { projectId: result.projectId },
+      chronology: { calculatedAt: result.calculatedAt },
+    },
+  ).then(() => result);
 }

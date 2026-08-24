@@ -18,12 +18,17 @@ import {
 } from '@jaryan/shared-domain';
 import type { TraceabilityLink } from './traceability.ts';
 import { buildTraceabilityLink } from './traceability.ts';
+import {
+  captureDurableSnapshotsFromPrimitiveExecution,
+} from './durable-calculation-snapshot.ts';
+import type { DurableCalculationSnapshotStore } from '@jaryan/shared-infrastructure';
 
 export interface SuperAdobeSolverRequest {
   readonly projectId: string;
   readonly inputs: SuperAdobeGeometryInputs;
   readonly lateralDemandKn?: number;
   readonly overturningMomentKnM?: number;
+  readonly durableSnapshotStore?: DurableCalculationSnapshotStore;
 }
 
 export interface GravityRowLoad {
@@ -168,8 +173,16 @@ function linkFor(
 }
 
 export function solveSuperAdobe(
+  request: SuperAdobeSolverRequest & {
+    readonly durableSnapshotStore: DurableCalculationSnapshotStore;
+  },
+): Promise<SuperAdobeSolverResult | null>;
+export function solveSuperAdobe(
   request: SuperAdobeSolverRequest,
-): SuperAdobeSolverResult | null {
+): SuperAdobeSolverResult | null;
+export function solveSuperAdobe(
+  request: SuperAdobeSolverRequest,
+): Promise<SuperAdobeSolverResult | null> | SuperAdobeSolverResult | null {
   const geometryResult = calculateSuperAdobeGeometry(request.inputs);
   if (!geometryResult.ok) {
     return null;
@@ -291,7 +304,7 @@ export function solveSuperAdobe(
     overturningDemandKnM,
   };
 
-  return {
+  const result: SuperAdobeSolverResult = {
     id,
     projectId: request.projectId,
     system: 'superadobe',
@@ -310,6 +323,17 @@ export function solveSuperAdobe(
     traceability,
     calculatedAt,
   };
+  if (request.durableSnapshotStore === undefined) return result;
+  return captureDurableSnapshotsFromPrimitiveExecution(
+    result.calculations.filter((primitive) => Object.keys(primitive.inputs).length > 0),
+    {
+    store: request.durableSnapshotStore,
+    executionReference: result.id,
+    snapshotIdPrefix: result.id,
+    projectContext: { projectId: result.projectId },
+    chronology: { calculatedAt: result.calculatedAt },
+    },
+  ).then(() => result);
 }
 
 function round3(value: number): number {

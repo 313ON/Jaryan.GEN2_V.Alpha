@@ -18,6 +18,7 @@ export * from './artifact-identity.ts';
 export * from './calculation-registry.ts';
 export * from './legacy-artifact-identity.ts';
 export * from './content-fingerprint.ts';
+export * from './durable-calculation-snapshot.ts';
 export * from './dependency-graph.ts';
 export * from './impact-analysis.ts';
 export * from './evidence.ts';

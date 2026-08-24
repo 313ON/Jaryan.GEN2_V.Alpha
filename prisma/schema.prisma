@@ -73,6 +73,14 @@ model Calculation {
   calculatedAt DateTime @default(now())
 }
 
+model DurableCalculationSnapshot {
+  storageId   String   @id @default(uuid())
+  snapshotId  String   @unique
+  fingerprint String
+  payload     Json
+  createdAt   DateTime @default(now())
+}
+
 model AuditLog {
   id        String   @id @default(uuid())
   projectId String?
