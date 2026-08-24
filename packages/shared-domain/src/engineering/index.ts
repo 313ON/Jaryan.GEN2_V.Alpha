@@ -37,3 +37,4 @@ export * from './geometry-reference.ts';
 export * from './graph-endpoint.ts';
 export * from './representation-semantics.ts';
 export * from './decision-change.ts';
+export * from './historical-evidence-binding.ts';
