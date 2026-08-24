@@ -19,3 +19,4 @@ export * from './relationship-authority-evaluation.ts';
 export * from './observation-evaluation.ts';
 export * from './capture-observation.ts';
 export * from './durable-calculation-snapshot.ts';
+export * from './historical-calculation-evidence-resolution.ts';

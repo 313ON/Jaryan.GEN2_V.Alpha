@@ -3,14 +3,21 @@ import {
   createDurableCalculationSnapshot,
   deserializeDurableCalculationSnapshot,
   serializeDurableCalculationSnapshot,
+  type EngineeringArtifactIdentity,
   type DurableCalculationSnapshot,
   type DurableCalculationSnapshotInput,
+  validateEngineeringArtifactIdentity,
 } from '@jaryan/shared-domain';
 import { PrismaService } from '../prisma.service';
-import { assertPersistedSnapshotFingerprint } from '../../durable-calculation-snapshot-store.ts';
+import {
+  assertPersistedSnapshotFingerprint,
+  type DurableCalculationSnapshotStore,
+} from '../../durable-calculation-snapshot-store.ts';
 
 @Injectable()
-export class DurableCalculationSnapshotRepository {
+export class DurableCalculationSnapshotRepository
+  implements DurableCalculationSnapshotStore
+{
   private readonly prisma: PrismaService;
 
   constructor(prisma: PrismaService) {
@@ -56,6 +63,35 @@ export class DurableCalculationSnapshotRepository {
       );
     }
     return snapshot;
+  }
+
+  async findByCalculationIdentity(
+    calculationIdentity: EngineeringArtifactIdentity,
+  ): Promise<readonly DurableCalculationSnapshot[]> {
+    const identityErrors = validateEngineeringArtifactIdentity(calculationIdentity);
+    if (identityErrors.length > 0) {
+      throw new Error(`Invalid calculation identity: ${identityErrors.join('; ')}`);
+    }
+    if (calculationIdentity.type !== 'CALCULATION') {
+      throw new Error('Calculation identity must use the CALCULATION type.');
+    }
+
+    const rows = await this.prisma.durableCalculationSnapshot.findMany({
+      orderBy: { snapshotId: 'asc' },
+    });
+    return rows
+      .map((row) => {
+        const snapshot = deserializeDurableCalculationSnapshot(String(row.payload));
+        try {
+          assertPersistedSnapshotFingerprint(row.fingerprint, snapshot.fingerprint);
+        } catch {
+          throw new Error(
+            `Durable calculation snapshot fingerprint mismatch for ${snapshot.snapshotId}.`,
+          );
+        }
+        return snapshot;
+      })
+      .filter((snapshot) => snapshot.calculationIdentity.id === calculationIdentity.id);
   }
 
   update(): never {

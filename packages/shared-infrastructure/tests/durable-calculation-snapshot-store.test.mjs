@@ -6,7 +6,6 @@ import {
 } from '@jaryan/shared-infrastructure';
 import {
   createEngineeringKnowledgePackageFromPrimitive,
-  engineeringArtifactIdentity,
   rowWeightPrimitive,
 } from '@jaryan/shared-domain';
 
@@ -57,5 +56,32 @@ test('persisted fingerprint mismatch is rejected by the storage integrity check'
   assert.throws(
     () => assertPersistedSnapshotFingerprint('stored', 'payload'),
     /fingerprint mismatch/,
+  );
+});
+
+test('findByCalculationIdentity returns every exact calculation match deterministically', async () => {
+  const store = new InMemoryDurableCalculationSnapshotStore();
+  await store.append(input('snapshot-z'));
+  await store.append(input('snapshot-a'));
+
+  assert.deepEqual(
+    (await store.findByCalculationIdentity(identity)).map((snapshot) => snapshot.snapshotId),
+    ['snapshot-a', 'snapshot-z'],
+  );
+  assert.deepEqual(await store.findByCalculationIdentity({
+    ...identity,
+    name: 'same canonical calculation',
+  }), await store.findByCalculationIdentity(identity));
+});
+
+test('findByCalculationIdentity validates the type and identity shape', async () => {
+  const store = new InMemoryDurableCalculationSnapshotStore();
+  await assert.rejects(
+    store.findByCalculationIdentity({ ...identity, type: 'RESULT' }),
+    /Invalid calculation identity|CALCULATION/,
+  );
+  await assert.rejects(
+    store.findByCalculationIdentity({ ...identity, id: 'not-a-calculation' }),
+    /Invalid calculation identity/,
   );
 });
