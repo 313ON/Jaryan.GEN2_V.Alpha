@@ -6,10 +6,11 @@ import { ProjectMemberRepository } from './repositories/project-member.repositor
 import { StructureRepository } from './repositories/structure.repository';
 import { CalculationRepository } from './repositories/calculation.repository';
 import { DurableCalculationSnapshotRepository } from './repositories/durable-calculation-snapshot.repository';
+import { SessionRepository } from './repositories/session.repository';
 
 @Global()
 @Module({
-  providers: [PrismaService, UserRepository, ProjectRepository, ProjectMemberRepository, StructureRepository, CalculationRepository, DurableCalculationSnapshotRepository],
-  exports: [PrismaService, UserRepository, ProjectRepository, ProjectMemberRepository, StructureRepository, CalculationRepository, DurableCalculationSnapshotRepository],
+  providers: [PrismaService, UserRepository, ProjectRepository, ProjectMemberRepository, SessionRepository, StructureRepository, CalculationRepository, DurableCalculationSnapshotRepository],
+  exports: [PrismaService, UserRepository, ProjectRepository, ProjectMemberRepository, SessionRepository, StructureRepository, CalculationRepository, DurableCalculationSnapshotRepository],
 })
 export class DatabaseModule {}

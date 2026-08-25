@@ -1,12 +1,16 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { User, Prisma } from '@prisma/client';
+import type {
+  UserResolver,
+  UserRecord,
+} from '../../../../shared-application/src/runtime-security.ts';
 
 @Injectable()
-export class UserRepository {
+export class UserRepository implements UserResolver {
   constructor(private prisma: PrismaService) {}
 
-  async findById(id: string): Promise<User | null> {
+  async findById(id: string): Promise<(User & UserRecord) | null> {
     return this.prisma.user.findUnique({ where: { id } });
   }
 
