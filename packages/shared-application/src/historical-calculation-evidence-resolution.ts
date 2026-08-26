@@ -28,6 +28,7 @@ export interface HistoricalCalculationEvidenceResolution {
 export interface ResolveHistoricalCalculationEvidenceInput {
   readonly calculationIdentity: EngineeringArtifactIdentity;
   readonly snapshotId?: string;
+  readonly projectId: string;
   readonly store: DurableCalculationSnapshotStore;
   readonly registry: EngineeringKnowledgeRegistry;
 }
@@ -51,7 +52,10 @@ export async function resolveHistoricalCalculationEvidence(
 
   let candidates: readonly DurableCalculationSnapshot[];
   try {
-    candidates = await input.store.findByCalculationIdentity(input.calculationIdentity);
+    candidates = await input.store.findByCalculationIdentity(
+      input.projectId,
+      input.calculationIdentity,
+    );
   } catch (error) {
     return {
       ...emptyResolution(input.calculationIdentity, 'UNKNOWN'),

@@ -36,6 +36,7 @@ model Project {
   members     ProjectMember[]
   structures  Structure[]
   calculations Calculation[]
+  durableCalculationSnapshots DurableCalculationSnapshot[]
   auditLogs   AuditLog[]
 }
 
@@ -75,10 +76,15 @@ model Calculation {
 
 model DurableCalculationSnapshot {
   storageId   String   @id @default(uuid())
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Restrict)
   snapshotId  String   @unique
   fingerprint String
   payload     Json
   createdAt   DateTime @default(now())
+
+  @@index([projectId, snapshotId])
+  @@index([projectId, createdAt])
 }
 
 model AuditLog {

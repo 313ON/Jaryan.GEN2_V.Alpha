@@ -123,6 +123,7 @@ export function createDurableSnapshotFromPrimitiveExecution(
 export async function captureDurableSnapshotsFromPrimitiveExecution(
   primitives: readonly PrimitiveResult[],
   input: {
+    readonly projectId: string;
     readonly executionReference: string;
     readonly snapshotIdPrefix: string;
     readonly projectContext?: Readonly<Record<string, unknown>>;
@@ -131,7 +132,8 @@ export async function captureDurableSnapshotsFromPrimitiveExecution(
     readonly packageVersion?: string;
     readonly store: DurableCalculationSnapshotStore;
   },
-): Promise<void> {
+): Promise<readonly DurableCalculationSnapshot[]> {
+  const captured: DurableCalculationSnapshot[] = [];
   for (const [index, primitive] of primitives.entries()) {
     const snapshot = createDurableSnapshotFromPrimitiveExecution(primitive, {
       snapshotId: `${input.snapshotIdPrefix}:${index}:${primitive.calculationId}`,
@@ -149,6 +151,8 @@ export async function captureDurableSnapshotsFromPrimitiveExecution(
         ? {}
         : { packageVersion: input.packageVersion }),
     });
-    await input.store.append(snapshot);
+    const persisted = await input.store.append(input.projectId, snapshot);
+    captured.push(persisted.snapshot);
   }
+  return Object.freeze(captured);
 }

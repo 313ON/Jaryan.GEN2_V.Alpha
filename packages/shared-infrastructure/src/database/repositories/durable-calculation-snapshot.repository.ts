@@ -8,7 +8,7 @@ import {
   type DurableCalculationSnapshotInput,
   validateEngineeringArtifactIdentity,
 } from '@jaryan/shared-domain';
-import { PrismaService } from '../prisma.service';
+import { PrismaService } from '../prisma.service.js';
 import {
   assertPersistedSnapshotFingerprint,
   type DurableCalculationSnapshotStore,
@@ -25,6 +25,7 @@ export class DurableCalculationSnapshotRepository
   }
 
   async append<TInputs, TOutputs>(
+    projectId: string,
     input: DurableCalculationSnapshotInput<TInputs, TOutputs>,
   ): Promise<{
     readonly storageId: string;
@@ -33,6 +34,7 @@ export class DurableCalculationSnapshotRepository
     const snapshot = createDurableCalculationSnapshot(input);
     const row = await this.prisma.durableCalculationSnapshot.create({
       data: {
+        projectId,
         snapshotId: snapshot.snapshotId,
         fingerprint: snapshot.fingerprint,
         payload: serializeDurableCalculationSnapshot(snapshot),
@@ -45,12 +47,14 @@ export class DurableCalculationSnapshotRepository
   }
 
   async get<TInputs, TOutputs>(
+    projectId: string,
     snapshotId: string,
   ): Promise<DurableCalculationSnapshot<TInputs, TOutputs> | null> {
     const row = await this.prisma.durableCalculationSnapshot.findUnique({
       where: { snapshotId },
     });
     if (!row) return null;
+    if (row.projectId !== projectId) return null;
     const snapshot = deserializeDurableCalculationSnapshot(String(row.payload)) as DurableCalculationSnapshot<
       TInputs,
       TOutputs
@@ -66,6 +70,7 @@ export class DurableCalculationSnapshotRepository
   }
 
   async findByCalculationIdentity(
+    projectId: string,
     calculationIdentity: EngineeringArtifactIdentity,
   ): Promise<readonly DurableCalculationSnapshot[]> {
     const identityErrors = validateEngineeringArtifactIdentity(calculationIdentity);
@@ -77,6 +82,7 @@ export class DurableCalculationSnapshotRepository
     }
 
     const rows = await this.prisma.durableCalculationSnapshot.findMany({
+      where: { projectId },
       orderBy: { snapshotId: 'asc' },
     });
     return rows

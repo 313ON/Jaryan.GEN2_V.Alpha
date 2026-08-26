@@ -1,15 +1,18 @@
 import { Module } from '@nestjs/common';
-import { RuntimeSecurityService } from '../../../packages/shared-application/src/runtime-security.ts';
-import { DatabaseModule } from '../../../packages/shared-infrastructure/src/database/database.module.ts';
-import { ProjectMemberRepository } from '../../../packages/shared-infrastructure/src/database/repositories/project-member.repository.ts';
-import { ProjectRepository } from '../../../packages/shared-infrastructure/src/database/repositories/project.repository.ts';
-import { SessionRepository } from '../../../packages/shared-infrastructure/src/database/repositories/session.repository.ts';
-import { UserRepository } from '../../../packages/shared-infrastructure/src/database/repositories/user.repository.ts';
-import { SecurityController } from './security.controller';
+import { RuntimeSecurityService } from '@jaryan/shared-application/runtime-security.js';
+import { DatabaseModule } from '@jaryan/shared-infrastructure/database/database.module.js';
+import { ProjectMemberRepository } from '@jaryan/shared-infrastructure/database/repositories/project-member.repository.js';
+import { ProjectRepository } from '@jaryan/shared-infrastructure/database/repositories/project.repository.js';
+import { SessionRepository } from '@jaryan/shared-infrastructure/database/repositories/session.repository.js';
+import { UserRepository } from '@jaryan/shared-infrastructure/database/repositories/user.repository.js';
+import { SecurityController } from './security.controller.ts';
+import { CalculationController } from './calculation.controller.ts';
+import { DurableCalculationSnapshotRepository } from '@jaryan/shared-infrastructure/database/repositories/durable-calculation-snapshot.repository.js';
+import { GovernedSuperAdobeRuntime } from '@jaryan/shared-application';
 
 @Module({
   imports: [DatabaseModule],
-  controllers: [SecurityController],
+  controllers: [SecurityController, CalculationController],
   providers: [
     {
       provide: RuntimeSecurityService,
@@ -25,6 +28,13 @@ import { SecurityController } from './security.controller';
         ProjectRepository,
         ProjectMemberRepository,
       ],
+    },
+    {
+      provide: GovernedSuperAdobeRuntime,
+      useFactory: (
+        snapshots: DurableCalculationSnapshotRepository,
+      ) => new GovernedSuperAdobeRuntime(snapshots),
+      inject: [DurableCalculationSnapshotRepository],
     },
   ],
 })

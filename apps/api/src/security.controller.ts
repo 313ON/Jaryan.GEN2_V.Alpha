@@ -10,7 +10,7 @@ import {
 import {
   RuntimeSecurityError,
   RuntimeSecurityService,
-} from '../../../packages/shared-application/src/runtime-security.ts';
+} from '@jaryan/shared-application/runtime-security.js';
 
 @Controller()
 export class SecurityController {

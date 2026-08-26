@@ -37,6 +37,7 @@ test('A: no snapshots resolves to NOT_FOUND', async () => {
   const result = await resolveHistoricalCalculationEvidence({
     calculationIdentity: identity,
     store: new InMemoryDurableCalculationSnapshotStore(),
+    projectId: 'project-a',
     registry,
   });
   assert.equal(result.status, 'NOT_FOUND');
@@ -46,6 +47,7 @@ test('B: one valid snapshot resolves deterministically without a selector', asyn
   const result = await resolveHistoricalCalculationEvidence({
     calculationIdentity: identity,
     store: storeReturning(snapshot('only')),
+    projectId: 'project-a',
     registry,
   });
   assert.equal(result.status, 'RESOLVED');
@@ -57,6 +59,7 @@ test('C: multiple snapshots without a selector are AMBIGUOUS', async () => {
   const result = await resolveHistoricalCalculationEvidence({
     calculationIdentity: identity,
     store: storeReturning(snapshot('b'), snapshot('a')),
+    projectId: 'project-a',
     registry,
   });
   assert.equal(result.status, 'AMBIGUOUS');
@@ -68,6 +71,7 @@ test('D: an explicit valid snapshotId resolves the exact historical snapshot', a
     calculationIdentity: identity,
     snapshotId: 'b',
     store: storeReturning(snapshot('b'), snapshot('a')),
+    projectId: 'project-a',
     registry,
   });
   assert.equal(result.status, 'RESOLVED');
@@ -80,6 +84,7 @@ test('E: a selector outside the candidate membership is NOT_FOUND', async () => 
     calculationIdentity: identity,
     snapshotId: 'other-calculation',
     store: storeReturning(snapshot('a')),
+    projectId: 'project-a',
     registry,
   });
   assert.equal(result.status, 'NOT_FOUND');
@@ -89,6 +94,7 @@ test('F: invalid calculation identity is INVALID', async () => {
   const result = await resolveHistoricalCalculationEvidence({
     calculationIdentity: { ...identity, type: 'RESULT' },
     store: storeReturning(snapshot('a')),
+    projectId: 'project-a',
     registry,
   });
   assert.equal(result.status, 'INVALID');
@@ -111,6 +117,7 @@ test('G/H: invalid snapshot payload or provenance is INVALID', async () => {
       calculationIdentity: identity,
       snapshotId: 'invalid',
       store: storeReturning(candidate),
+      projectId: 'project-a',
       registry,
     });
     assert.equal(result.status, 'INVALID');
@@ -123,6 +130,7 @@ test('I/K: no fallback to latest or chronology when candidates are plural', asyn
   const result = await resolveHistoricalCalculationEvidence({
     calculationIdentity: identity,
     store: storeReturning(latestSnapshot, oldSnapshot),
+    projectId: 'project-a',
     registry,
   });
   assert.equal(result.status, 'AMBIGUOUS');
@@ -136,6 +144,7 @@ test('J: identical fingerprints do not select a historical snapshot', async () =
   const result = await resolveHistoricalCalculationEvidence({
     calculationIdentity: identity,
     store: storeReturning(first, second),
+    projectId: 'project-a',
     registry,
   });
   assert.equal(result.status, 'AMBIGUOUS');
@@ -147,6 +156,7 @@ test('L: snapshot identity remains distinct from calculation and execution ident
     calculationIdentity: identity,
     snapshotId: candidate.snapshotId,
     store: storeReturning(candidate),
+    projectId: 'project-a',
     registry,
   });
   assert.equal(result.status, 'RESOLVED');
@@ -160,6 +170,7 @@ test('M: existing reconstruction remains pinned to the original package bindings
     calculationIdentity: identity,
     snapshotId: candidate.snapshotId,
     store: storeReturning(candidate),
+    projectId: 'project-a',
     registry,
   });
   assert.equal(result.status, 'RESOLVED');

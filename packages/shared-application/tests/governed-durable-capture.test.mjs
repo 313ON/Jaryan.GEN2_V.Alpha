@@ -32,13 +32,13 @@ class CountingSnapshotStore {
     this.appended = [];
   }
 
-  async append(input) {
+  async append(projectId, input) {
     this.appended.push(input.snapshotId);
-    return this.inner.append(input);
+    return this.inner.append(projectId, input);
   }
 
-  get(snapshotId) {
-    return this.inner.get(snapshotId);
+  get(projectId, snapshotId) {
+    return this.inner.get(projectId, snapshotId);
   }
 
   update() {
@@ -63,7 +63,7 @@ test('solveSuperAdobe captures each governed primitive exactly once', async () =
   assert.equal(new Set(store.appended).size, result.calculations.length);
 
   for (const [index, primitive] of result.calculations.entries()) {
-    const snapshot = await store.get(`${result.id}:${index}:${primitive.calculationId}`);
+    const snapshot = await store.get('project-solver', `${result.id}:${index}:${primitive.calculationId}`);
     assert.ok(snapshot);
     assert.notEqual(snapshot.snapshotId, snapshot.executionReference);
     assert.equal(snapshot.outcome, primitive.status === 'FAIL' ? 'FAILED' : 'COMPLETED');
@@ -91,7 +91,7 @@ test('verifySuperAdobeStructure captures each governed primitive and preserves r
 
   const primitive = result.primitives[0];
   const primitiveIndex = result.primitives.indexOf(primitive);
-  const snapshot = await store.get(`${result.id}:${primitiveIndex}:${primitive.calculationId}`);
+    const snapshot = await store.get('project-verification', `${result.id}:${primitiveIndex}:${primitive.calculationId}`);
   assert.ok(snapshot);
 
   const registry = createEngineeringKnowledgeRegistry();
@@ -111,12 +111,13 @@ test('failed governed primitive capture preserves diagnostics without authoritat
   };
 
   await captureDurableSnapshotsFromPrimitiveExecution([primitive], {
+    projectId: 'project-failed',
     store,
     executionReference: 'execution-failed-integration',
     snapshotIdPrefix: 'snapshot-failed-integration',
   });
 
-  const snapshot = await store.get('snapshot-failed-integration:0:SA-FAILED-INTEGRATION-001');
+  const snapshot = await store.get('project-failed', 'snapshot-failed-integration:0:SA-FAILED-INTEGRATION-001');
   assert.ok(snapshot);
   assert.equal(snapshot.outcome, 'FAILED');
   assert.equal(snapshot.completedOutputs, null);

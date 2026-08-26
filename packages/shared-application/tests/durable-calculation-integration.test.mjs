@@ -29,7 +29,7 @@ test('governed primitive execution captures and persists a completed snapshot', 
     projectContext: { projectId: 'project-a' },
   });
   const store = new InMemoryDurableCalculationSnapshotStore();
-  const persisted = await store.append({
+  const persisted = await store.append('project-a', {
     ...snapshot,
     fingerprint: undefined,
   });
@@ -39,7 +39,7 @@ test('governed primitive execution captures and persists a completed snapshot', 
   assert.equal(persisted.snapshot.provenanceBindings.calculation.type, 'CALCULATION');
   assert.equal(persisted.snapshot.provenanceBindings.primitive.type, 'PRIMITIVE');
   assert.equal(persisted.snapshot.provenanceBindings.result.type, 'RESULT');
-  assert.equal((await store.get('snapshot-success')).projectContext.projectId, 'project-a');
+  assert.equal((await store.get('project-a', 'snapshot-success')).projectContext.projectId, 'project-a');
 });
 
 test('governed primitive failure captures a failed snapshot without authoritative output', async () => {
@@ -48,12 +48,12 @@ test('governed primitive failure captures a failed snapshot without authoritativ
     executionReference: 'execution-failure',
   });
   const store = new InMemoryDurableCalculationSnapshotStore();
-  await store.append({
+  await store.append('project-a', {
     ...snapshot,
     fingerprint: undefined,
   });
 
-  const restored = await store.get('snapshot-failure');
+  const restored = await store.get('project-a', 'snapshot-failure');
   assert.equal(restored.outcome, 'FAILED');
   assert.equal(restored.completedOutputs, null);
   assert.equal(restored.failedDiagnostics[0].code, 'GOVERNED_PRIMITIVE_FAILED');
@@ -66,12 +66,12 @@ test('historical view and reconstruction use the original package bindings only'
     executionReference: 'execution-history',
   });
   const store = new InMemoryDurableCalculationSnapshotStore();
-  await store.append({
+  await store.append('project-a', {
     ...snapshot,
     fingerprint: undefined,
   });
 
-  const viewed = await store.get('snapshot-history');
+  const viewed = await store.get('project-a', 'snapshot-history');
   assert.deepEqual(viewed.provenanceBindings, snapshot.provenanceBindings);
   const registry = createEngineeringKnowledgeRegistry();
   const pkg = createEngineeringKnowledgePackageFromPrimitive(primitive);

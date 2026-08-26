@@ -328,6 +328,7 @@ export function solveSuperAdobe(
     result.calculations.filter((primitive) => Object.keys(primitive.inputs).length > 0),
     {
     store: request.durableSnapshotStore,
+    projectId: result.projectId,
     executionReference: result.id,
     snapshotIdPrefix: result.id,
     projectContext: { projectId: result.projectId },
