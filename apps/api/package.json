@@ -15,7 +15,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "start": "node dist/main.js",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "release:e2e": "node --test tests/release-e2e.test.mjs"
   },
   "devDependencies": {
     "typescript": "^5.3.0",
