@@ -1,17 +1,18 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import { PrismaClient } from '@prisma/client';
-import { PrismaPostgresAdapter } from '@prisma/adapter-ppg';
+import { PrismaPg } from '@prisma/adapter-pg';
 
 const apiDirectory = fileURLToPath(new URL('../', import.meta.url));
 const port = 3017;
 const ids = {
-  user: '00000000-0000-4000-8000-000000000001',
-  session: '00000000-0000-4000-8000-000000000002',
-  projectA: '00000000-0000-4000-8000-000000000003',
-  projectB: '00000000-0000-4000-8000-000000000004',
+  user: randomUUID(),
+  session: randomUUID(),
+  projectA: randomUUID(),
+  projectB: randomUUID(),
 };
 
 test('release path proves authenticated project isolation and exact evidence retrieval', async () => {
@@ -23,7 +24,7 @@ test('release path proves authenticated project isolation and exact evidence ret
   );
 
   const prisma = new PrismaClient({
-    adapter: new PrismaPostgresAdapter({ connectionString }),
+    adapter: new PrismaPg({ connectionString }),
   });
   const api = spawn(
     process.execPath,
@@ -40,22 +41,16 @@ test('release path proves authenticated project isolation and exact evidence ret
   );
 
   try {
-    await prisma.durableCalculationSnapshot.deleteMany({
-      where: { projectId: { in: [ids.projectA, ids.projectB] } },
-    });
     await prisma.session.deleteMany({ where: { id: ids.session } });
     await prisma.projectMember.deleteMany({
       where: { projectId: { in: [ids.projectA, ids.projectB] } },
-    });
-    await prisma.project.deleteMany({
-      where: { id: { in: [ids.projectA, ids.projectB] } },
     });
     await prisma.user.deleteMany({ where: { id: ids.user } });
 
     await prisma.user.create({
       data: {
         id: ids.user,
-        email: 'release-e2e@example.invalid',
+        email: `release-e2e-${ids.user}@example.invalid`,
         passwordHash: 'release-e2e-fixture',
         name: 'Release E2E Fixture',
       },
@@ -160,15 +155,9 @@ test('release path proves authenticated project isolation and exact evidence ret
     assert.equal(wrongSnapshot.status, 404);
   } finally {
     api.kill();
-    await prisma.durableCalculationSnapshot.deleteMany({
-      where: { projectId: { in: [ids.projectA, ids.projectB] } },
-    });
     await prisma.session.deleteMany({ where: { id: ids.session } });
     await prisma.projectMember.deleteMany({
       where: { projectId: { in: [ids.projectA, ids.projectB] } },
-    });
-    await prisma.project.deleteMany({
-      where: { id: { in: [ids.projectA, ids.projectB] } },
     });
     await prisma.user.deleteMany({ where: { id: ids.user } });
     await prisma.$disconnect();

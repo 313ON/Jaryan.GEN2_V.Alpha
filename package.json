@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "build": "npm run build --workspaces --if-present",
+    "build": "npm run build --workspace @jaryan/web && npm run build --workspace @jaryan/shared-domain && npm run build --workspace @jaryan/shared-application && npm run build --workspace @jaryan/shared-infrastructure && npm run build --workspace @jaryan/api",
     "dev": "npm run dev --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm run test --workspaces --if-present"
@@ -17,8 +17,9 @@
     "typescript": "^5.3.0"
   },
   "dependencies": {
-    "@prisma/adapter-ppg": "^7.9.1",
-    "@prisma/client": "^7.9.1"
+    "@prisma/adapter-pg": "^7.10.0",
+    "@prisma/client": "^7.9.1",
+    "pg": "^8.23.0"
   },
   "overrides": {
     "react": "18.3.1",
