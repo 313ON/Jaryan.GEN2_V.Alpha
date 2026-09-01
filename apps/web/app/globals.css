@@ -1020,6 +1020,60 @@ svg {
   text-transform: uppercase;
 }
 
+.field-worklist {
+  border-bottom: 1px solid var(--line);
+}
+
+.field-worklist .panel-heading {
+  min-height: 0;
+  background: rgba(110, 156, 163, 0.04);
+}
+
+.field-worklist__groups {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.field-worklist__group {
+  min-width: 0;
+  padding: 18px;
+  border-right: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+.field-worklist__group:nth-child(3n) {
+  border-right: 0;
+}
+
+.field-worklist__group h3 {
+  margin: 0 0 12px;
+  color: var(--sand);
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.field-worklist__group ul {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.field-worklist__group li {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line-soft);
+  color: var(--text-secondary);
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.field-worklist__group li:last-child {
+  border-bottom: 0;
+}
+
 [data-status="modeled"] {
   color: var(--moss) !important;
   border-color: rgba(132, 150, 106, 0.4) !important;
@@ -1431,6 +1485,15 @@ svg {
     grid-template-columns: 1fr;
   }
 
+  .field-worklist__groups {
+    grid-template-columns: 1fr;
+  }
+
+  .field-worklist__group,
+  .field-worklist__group:nth-child(3n) {
+    border-right: 0;
+  }
+
   .basis-card,
   .basis-card:nth-child(2n),
   .basis-card:nth-child(3n),
@@ -1541,6 +1604,10 @@ svg {
     justify-self: start;
     max-width: 100%;
     text-align: left;
+  }
+
+  .field-worklist__group {
+    padding: 16px;
   }
 
   .portal-footer {
@@ -1669,6 +1736,40 @@ svg {
   .print-grid .spec-row small {
     color: #6e6b61;
   }
+
+.print-field-worklist {
+  break-before: page;
+}
+
+.print-field-worklist__groups {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  border-top: 1px solid #d4d0c5;
+  border-left: 1px solid #d4d0c5;
+}
+
+.print-field-worklist__groups > section {
+  margin-top: 0;
+  padding: 3mm;
+  border-right: 1px solid #d4d0c5;
+  border-bottom: 1px solid #d4d0c5;
+}
+
+.print-field-worklist__groups h3 {
+  margin: 0 0 2mm;
+  color: #5f3427;
+  font-size: 10pt;
+}
+
+.print-field-worklist__groups ul {
+  margin: 0;
+  padding-left: 5mm;
+}
+
+.print-field-worklist__groups li {
+  margin-bottom: 1.5mm;
+  line-height: 1.45;
+}
 
   .print-assumptions {
     break-before: page;

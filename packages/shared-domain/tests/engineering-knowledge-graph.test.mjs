@@ -199,10 +199,12 @@ test('K: the resolved graph is canonical, frozen, and deterministic', () => {
   const graph = resolveEngineeringKnowledgeGraph(registry);
   assert.equal(graph.formatVersion, ENGINEERING_KNOWLEDGE_GRAPH_FORMAT_VERSION);
   assert.equal(Object.isFrozen(graph), true);
+  assert.ok(graph.edges.every((edge) => Object.isFrozen(edge)));
   assert.deepEqual(graph.selfDependencies, []);
   assert.equal(graph.acyclic, true);
   assert.equal(graph.open, false);
   assert.equal(graph.fingerprint, engineeringKnowledgeGraphFingerprint(graph));
+  assert.ok(graph.edges.every((edge) => edge.predicate === 'DEPENDENCY'));
   const ids = graph.nodes.map((node) => node.id);
   assert.deepEqual(ids, [...ids].sort());
   assert.equal(validateResolvedEngineeringKnowledgeGraph(graph).length, 0);
@@ -233,6 +235,7 @@ test('L: the resolved graph carries chain edges with package ownership', () => {
   assert.ok(edgeBetween(graph, ROW_PRIM, sourceId));
   assert.equal(edgeBetween(graph, ROW_RESULT, ACC_CALC).resolved, true);
   assert.equal(edgeBetween(graph, ROW_PRIM, sourceId).resolved, false);
+  assert.equal(edgeBetween(graph, ROW_RESULT, ROW_CALC).predicate, 'DEPENDENCY');
   assert.equal(graph.open, true);
   assert.equal(graph.acyclic, true);
 });
@@ -301,6 +304,7 @@ test('P: the validator rejects a crafted self-dependency graph', () => {
     edges: [
       {
         fromId: 'RESULT-SA-CRAFTED-001-v1',
+        predicate: 'DEPENDENCY',
         toId: 'RESULT-SA-CRAFTED-001-v1',
         fromStatus: 'RESOLVED',
         toStatus: 'RESOLVED',
@@ -315,6 +319,31 @@ test('P: the validator rejects a crafted self-dependency graph', () => {
   const errors = validateResolvedEngineeringKnowledgeGraph(crafted);
   assert.ok(errors.some((error) => error.includes('self dependency')));
   assert.ok(errors.some((error) => error.includes('acyclic')));
+});
+
+test('P2: the validator rejects an unsupported relationship predicate', () => {
+  const registry = createEngineeringKnowledgeRegistry().register(rowWeightPackage('1'));
+  const graph = resolveEngineeringKnowledgeGraph(registry);
+  const crafted = {
+    ...graph,
+    edges: graph.edges.map((edge) => ({ ...edge, predicate: 'PART_OF' })),
+    fingerprint: '',
+  };
+  const errors = validateResolvedEngineeringKnowledgeGraph(crafted);
+  assert.ok(errors.some((error) => error.includes('unsupported predicate')));
+});
+
+test('P3: the predicate participates in deterministic graph identity', () => {
+  const registry = createEngineeringKnowledgeRegistry().register(rowWeightPackage('1'));
+  const graph = resolveEngineeringKnowledgeGraph(registry);
+  const changed = {
+    ...graph,
+    edges: graph.edges.map((edge) => ({ ...edge, predicate: 'PART_OF' })),
+  };
+  assert.notEqual(
+    engineeringKnowledgeGraphFingerprint(graph),
+    engineeringKnowledgeGraphFingerprint(changed),
+  );
 });
 
 test('Q: registered impact resolves the target and reports dependents', () => {

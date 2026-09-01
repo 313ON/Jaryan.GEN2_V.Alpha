@@ -1,0 +1,138 @@
+{
+  "manifestVersion": 1,
+  "scope": {
+    "schemas": ["public"],
+    "tables": [
+      {
+        "name": "AuditLog",
+        "columns": [
+          {"name": "action", "type": "text", "nullable": false, "default": null},
+          {"name": "id", "type": "text", "nullable": false, "default": null},
+          {"name": "payload", "type": "jsonb", "nullable": true, "default": null},
+          {"name": "projectId", "type": "text", "nullable": true, "default": null},
+          {"name": "resource", "type": "text", "nullable": false, "default": null},
+          {"name": "timestamp", "type": "timestamp(3) without time zone", "nullable": false, "default": "CURRENT_TIMESTAMP"},
+          {"name": "userId", "type": "text", "nullable": false, "default": null}
+        ],
+        "primaryKeys": [{"name": "AuditLog_pkey", "columns": ["id"]}]
+      },
+      {
+        "name": "Calculation",
+        "columns": [
+          {"name": "calculatedAt", "type": "timestamp(3) without time zone", "nullable": false, "default": "CURRENT_TIMESTAMP"},
+          {"name": "calcType", "type": "text", "nullable": false, "default": null},
+          {"name": "id", "type": "text", "nullable": false, "default": null},
+          {"name": "inputs", "type": "jsonb", "nullable": false, "default": null},
+          {"name": "outputs", "type": "jsonb", "nullable": false, "default": null},
+          {"name": "projectId", "type": "text", "nullable": false, "default": null},
+          {"name": "status", "type": "text", "nullable": false, "default": null}
+        ],
+        "primaryKeys": [{"name": "Calculation_pkey", "columns": ["id"]}]
+      },
+      {
+        "name": "DurableCalculationSnapshot",
+        "columns": [
+          {"name": "createdAt", "type": "timestamp(3) without time zone", "nullable": false, "default": "CURRENT_TIMESTAMP"},
+          {"name": "fingerprint", "type": "text", "nullable": false, "default": null},
+          {"name": "payload", "type": "jsonb", "nullable": false, "default": null},
+          {"name": "projectId", "type": "text", "nullable": false, "default": null},
+          {"name": "snapshotId", "type": "text", "nullable": false, "default": null},
+          {"name": "storageId", "type": "text", "nullable": false, "default": null}
+        ],
+        "primaryKeys": [{"name": "DurableCalculationSnapshot_pkey", "columns": ["storageId"]}]
+      },
+      {
+        "name": "Project",
+        "columns": [
+          {"name": "createdAt", "type": "timestamp(3) without time zone", "nullable": false, "default": "CURRENT_TIMESTAMP"},
+          {"name": "description", "type": "text", "nullable": true, "default": null},
+          {"name": "id", "type": "text", "nullable": false, "default": null},
+          {"name": "name", "type": "text", "nullable": false, "default": null},
+          {"name": "updatedAt", "type": "timestamp(3) without time zone", "nullable": false, "default": null}
+        ],
+        "primaryKeys": [{"name": "Project_pkey", "columns": ["id"]}]
+      },
+      {
+        "name": "ProjectMember",
+        "columns": [
+          {"name": "assignedAt", "type": "timestamp(3) without time zone", "nullable": false, "default": "CURRENT_TIMESTAMP"},
+          {"name": "id", "type": "text", "nullable": false, "default": null},
+          {"name": "projectId", "type": "text", "nullable": false, "default": null},
+          {"name": "role", "type": "text", "nullable": false, "default": "'VIEWER'"},
+          {"name": "userId", "type": "text", "nullable": false, "default": null}
+        ],
+        "primaryKeys": [{"name": "ProjectMember_pkey", "columns": ["id"]}]
+      },
+      {
+        "name": "Session",
+        "columns": [
+          {"name": "createdAt", "type": "timestamp(3) without time zone", "nullable": false, "default": "CURRENT_TIMESTAMP"},
+          {"name": "expiresAt", "type": "timestamp(3) without time zone", "nullable": false, "default": null},
+          {"name": "id", "type": "text", "nullable": false, "default": null},
+          {"name": "userId", "type": "text", "nullable": false, "default": null}
+        ],
+        "primaryKeys": [{"name": "Session_pkey", "columns": ["id"]}]
+      },
+      {
+        "name": "Structure",
+        "columns": [
+          {"name": "createdAt", "type": "timestamp(3) without time zone", "nullable": false, "default": "CURRENT_TIMESTAMP"},
+          {"name": "dimensions", "type": "jsonb", "nullable": false, "default": null},
+          {"name": "geometryType", "type": "text", "nullable": false, "default": null},
+          {"name": "id", "type": "text", "nullable": false, "default": null},
+          {"name": "name", "type": "text", "nullable": false, "default": null},
+          {"name": "projectId", "type": "text", "nullable": false, "default": null},
+          {"name": "updatedAt", "type": "timestamp(3) without time zone", "nullable": false, "default": null}
+        ],
+        "primaryKeys": [{"name": "Structure_pkey", "columns": ["id"]}]
+      },
+      {
+        "name": "User",
+        "columns": [
+          {"name": "createdAt", "type": "timestamp(3) without time zone", "nullable": false, "default": "CURRENT_TIMESTAMP"},
+          {"name": "email", "type": "text", "nullable": false, "default": null},
+          {"name": "globalRole", "type": "text", "nullable": false, "default": "'ENGINEER'"},
+          {"name": "id", "type": "text", "nullable": false, "default": null},
+          {"name": "name", "type": "text", "nullable": false, "default": null},
+          {"name": "passwordHash", "type": "text", "nullable": false, "default": null},
+          {"name": "updatedAt", "type": "timestamp(3) without time zone", "nullable": false, "default": null}
+        ],
+        "primaryKeys": [{"name": "User_pkey", "columns": ["id"]}]
+      }
+    ],
+    "uniqueConstraints": [
+      {"name": "ProjectMember_projectId_userId_key", "table": "ProjectMember", "columns": ["projectId", "userId"]},
+      {"name": "User_email_key", "table": "User", "columns": ["email"]}
+    ],
+    "indexes": [
+      {"name": "DurableCalculationSnapshot_projectId_createdAt_idx", "table": "DurableCalculationSnapshot", "unique": false, "columns": ["projectId", "createdAt"]},
+      {"name": "DurableCalculationSnapshot_projectId_snapshotId_idx", "table": "DurableCalculationSnapshot", "unique": false, "columns": ["projectId", "snapshotId"]},
+      {"name": "DurableCalculationSnapshot_snapshotId_key", "table": "DurableCalculationSnapshot", "unique": true, "columns": ["snapshotId"]},
+      {"name": "ProjectMember_projectId_userId_key", "table": "ProjectMember", "unique": true, "columns": ["projectId", "userId"]},
+      {"name": "User_email_key", "table": "User", "unique": true, "columns": ["email"]}
+    ],
+    "foreignKeys": [
+      {"name": "AuditLog_projectId_fkey", "table": "AuditLog", "columns": ["projectId"], "referencedTable": "Project", "referencedColumns": ["id"], "onDelete": "SET NULL", "onUpdate": "CASCADE"},
+      {"name": "AuditLog_userId_fkey", "table": "AuditLog", "columns": ["userId"], "referencedTable": "User", "referencedColumns": ["id"], "onDelete": "CASCADE", "onUpdate": "CASCADE"},
+      {"name": "Calculation_projectId_fkey", "table": "Calculation", "columns": ["projectId"], "referencedTable": "Project", "referencedColumns": ["id"], "onDelete": "CASCADE", "onUpdate": "CASCADE"},
+      {"name": "DurableCalculationSnapshot_projectId_fkey", "table": "DurableCalculationSnapshot", "columns": ["projectId"], "referencedTable": "Project", "referencedColumns": ["id"], "onDelete": "RESTRICT", "onUpdate": "CASCADE"},
+      {"name": "ProjectMember_projectId_fkey", "table": "ProjectMember", "columns": ["projectId"], "referencedTable": "Project", "referencedColumns": ["id"], "onDelete": "CASCADE", "onUpdate": "CASCADE"},
+      {"name": "ProjectMember_userId_fkey", "table": "ProjectMember", "columns": ["userId"], "referencedTable": "User", "referencedColumns": ["id"], "onDelete": "CASCADE", "onUpdate": "CASCADE"},
+      {"name": "Session_userId_fkey", "table": "Session", "columns": ["userId"], "referencedTable": "User", "referencedColumns": ["id"], "onDelete": "CASCADE", "onUpdate": "CASCADE"},
+      {"name": "Structure_projectId_fkey", "table": "Structure", "columns": ["projectId"], "referencedTable": "Project", "referencedColumns": ["id"], "onDelete": "CASCADE", "onUpdate": "CASCADE"}
+    ],
+    "functions": [
+      {"name": "reject_durable_calculation_snapshot_mutation", "schema": "public", "returns": "trigger", "language": "plpgsql", "body": "BEGIN\n    RAISE EXCEPTION 'Durable calculation snapshots are append-only';\nEND;"}
+    ],
+    "triggers": [
+      {"name": "DurableCalculationSnapshot_no_delete", "table": "DurableCalculationSnapshot", "timing": "BEFORE", "events": ["DELETE"], "granularity": "EACH ROW", "function": "public.reject_durable_calculation_snapshot_mutation"},
+      {"name": "DurableCalculationSnapshot_no_update", "table": "DurableCalculationSnapshot", "timing": "BEFORE", "events": ["UPDATE"], "granularity": "EACH ROW", "function": "public.reject_durable_calculation_snapshot_mutation"}
+    ]
+  },
+  "provenance": {
+    "repositoryHead": "6ec78fd41f3a38e44045c4d5c8092afd6ea54b82",
+    "cutoverIdentity": "D10.7-A/2026-08-26",
+    "baselineArtifact": "prisma/baseline/20260826_release_cutover_baseline.sql",
+    "provenanceStatement": "The original schema creation history is unavailable. This release baseline records the verified schema state adopted at release cutover. It is authoritative only for future migrations from that cutover state and does not claim to represent historical schema creation."
+  }
+}

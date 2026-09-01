@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { PrismaService } from '../prisma.service';
+import { PrismaService } from '../prisma.service.js';
 import { Calculation, Prisma } from '@prisma/client';
 
 @Injectable()
@@ -15,7 +15,7 @@ export class CalculationRepository {
   async getProjectHistory(projectId: string): Promise<Calculation[]> {
     return this.prisma.calculation.findMany({
       where: { projectId },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { calculatedAt: 'desc' },
     });
   }
 }

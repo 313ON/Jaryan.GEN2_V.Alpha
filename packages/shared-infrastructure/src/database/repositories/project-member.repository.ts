@@ -1,13 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import { PrismaService } from '../prisma.service';
+import { PrismaService } from '../prisma.service.js';
 import { ProjectMember, Prisma } from '@prisma/client';
-import type {
-  ProjectMembershipResolver,
-  ProjectMembershipRecord,
-} from '../../../../shared-application/src/runtime-security.ts';
 
 @Injectable()
-export class ProjectMemberRepository implements ProjectMembershipResolver {
+export class ProjectMemberRepository {
   constructor(private prisma: PrismaService) {}
 
   async addMember(data: Prisma.ProjectMemberCreateInput): Promise<ProjectMember> {
@@ -17,7 +13,7 @@ export class ProjectMemberRepository implements ProjectMembershipResolver {
   async findByProjectAndUser(
     projectId: string,
     userId: string,
-  ): Promise<(ProjectMember & ProjectMembershipRecord) | null> {
+  ): Promise<ProjectMember | null> {
     return this.prisma.projectMember.findUnique({
       where: { projectId_userId: { projectId, userId } },
     });

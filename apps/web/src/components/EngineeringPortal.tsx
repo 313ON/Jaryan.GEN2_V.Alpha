@@ -24,6 +24,10 @@ import {
   BASIS_STATUSES,
   STUDY_BASIS,
 } from '@jaryan/shared-knowledge/src/claims/study-basis.ts';
+import {
+  buildFieldCollectionWorklist,
+  type FieldCollectionItem,
+} from '@jaryan/shared-application/field-collection-worklist.js';
 import { REFERENCE_BASIS } from '@jaryan/shared-knowledge/src/claims/reference-basis.ts';
 import {
   HARDCODED_ASSUMPTIONS,
@@ -39,6 +43,39 @@ const SiteMap = dynamic(() => import('./SiteMap'), {
     </div>
   ),
 });
+
+interface FieldCollectionGroup {
+  readonly title: string;
+  readonly items: readonly FieldCollectionItem[];
+}
+
+function groupFieldCollectionItems(
+  items: readonly FieldCollectionItem[],
+): readonly FieldCollectionGroup[] {
+  const groups: FieldCollectionGroup[] = [];
+
+  for (const item of items) {
+    const current = groups[groups.length - 1];
+    if (current?.title === item.groupTitle) {
+      groups[groups.length - 1] = {
+        title: current.title,
+        items: [...current.items, item],
+      };
+      continue;
+    }
+
+    groups.push({
+      title: item.groupTitle,
+      items: [item],
+    });
+  }
+
+  return groups;
+}
+
+const FIELD_COLLECTION_GROUPS = groupFieldCollectionItems(
+  buildFieldCollectionWorklist(STUDY_BASIS),
+);
 
 type Tone =
   | 'neutral'
@@ -125,17 +162,19 @@ function PanelHeading({
   title,
   description,
   action,
+  titleId,
 }: {
   eyebrow: string;
   title: string;
   description: string;
   action?: ReactNode;
+  titleId?: string;
 }) {
   return (
     <header className="panel-heading">
       <div>
         <span className="eyebrow">{eyebrow}</span>
-        <h2>{title}</h2>
+        <h2 id={titleId}>{title}</h2>
         <p>{description}</p>
       </div>
       {action}
@@ -976,6 +1015,29 @@ export function EngineeringPortal() {
                 </span>
               ))}
             </div>
+            <section
+              className="field-worklist"
+              aria-labelledby="field-worklist-title"
+            >
+              <PanelHeading
+                eyebrow="Field collection"
+                title="Required field measurements"
+                titleId="field-worklist-title"
+                description="These are field measurements declared as required by the current engineering basis. This informational list records no collection, evidence, verification, or completion state."
+              />
+              <div className="field-worklist__groups">
+                {FIELD_COLLECTION_GROUPS.map((group, groupIndex) => (
+                  <section className="field-worklist__group" key={groupIndex}>
+                    <h3>{group.title}</h3>
+                    <ul>
+                      {group.items.map((item, itemIndex) => (
+                        <li key={itemIndex}>{item.label}</li>
+                      ))}
+                    </ul>
+                  </section>
+                ))}
+              </div>
+            </section>
             <div className="basis-grid">
               {STUDY_BASIS.map((group) => (
                 <section className="basis-card" key={group.title}>
@@ -1106,6 +1168,21 @@ export function EngineeringPortal() {
             </div>
           </section>
         )}
+        <section className="print-field-worklist">
+          <h2>Required field measurements</h2>
+          <div className="print-field-worklist__groups">
+            {FIELD_COLLECTION_GROUPS.map((group, groupIndex) => (
+              <section key={groupIndex}>
+                <h3>{group.title}</h3>
+                <ul>
+                  {group.items.map((item, itemIndex) => (
+                    <li key={itemIndex}>{item.label}</li>
+                  ))}
+                </ul>
+              </section>
+            ))}
+          </div>
+        </section>
         <section className="print-assumptions">
           <h2>Assumptions and limitations</h2>
           <ul>
