@@ -2,8 +2,8 @@
 
 Release identity: `JARYAN-RELEASE-1-RECUT-2026-09-01`
 
-Status: provenance-valid candidate pending the immutable release commit and
-annotated tag created from this source tree.
+Status: provenance-valid re-cut release, identified by its immutable release
+commit and annotated Git tag.
 
 ## Historical distinction
 
