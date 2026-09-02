@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "build": "npm run build --workspace @jaryan/web && npm run build --workspace @jaryan/shared-domain && npm run build --workspace @jaryan/shared-application && npm run build --workspace @jaryan/shared-infrastructure && npm run build --workspace @jaryan/api",
+    "db:provision:baseline": "node scripts/provision-release-baseline.mjs",
     "dev": "npm run dev --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm run test --workspaces --if-present"

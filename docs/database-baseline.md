@@ -10,8 +10,20 @@ The historical migration directories remain unchanged evidence:
 - `20260824120000_add_durable_calculation_snapshot`
 - `20260826100000_scope_durable_calculation_snapshot_to_project`
 
-They are not a clean reconstruction path and are not retroactively marked
-applied by this baseline.
+They are not a clean reconstruction path. The reproducible empty-database
+provisioning command applies this verified baseline and then uses Prisma's
+`migrate resolve --applied` command for each historical migration, explicitly
+reconciling migration history without pretending that either historical SQL
+created the release schema:
+
+```text
+npm run db:provision:baseline
+```
+
+The command refuses to run when any application table or `_prisma_migrations`
+table already exists. It requires both `DATABASE_URL` and
+`PRISMA_DIRECT_TCP_URL` to resolve to the same direct target
+`127.0.0.1:5432/jaryan_gen2`.
 
 ## Canonical fingerprint
 
@@ -47,12 +59,8 @@ validated by introspecting the resulting database and comparing the
 canonical representation/fingerprint, not only by a migration command exit
 code.
 
-For a completely empty PostgreSQL database, execute the baseline SQL using a
-disposable database connection, introspect the resulting public application
-objects, canonicalize them with the rules above, and compare the resulting
-fingerprint with the manifest fingerprint. This D10.7-A workspace has no
-running disposable PostgreSQL target (`prisma dev ls` reports `default
-not_running`, and no `psql` executable/service is available), so the database
-execution/introspection proof is intentionally not claimed here.
-
+For a completely empty PostgreSQL database, run `npm run db:provision:baseline`,
+then introspect the resulting public application objects, canonicalize them
+with the rules above, and compare the resulting fingerprint with the manifest
+fingerprint. Future migrations start after this explicit cutover boundary.
 The original schema creation history is unavailable. This release baseline records the verified schema state adopted at release cutover. It is authoritative only for future migrations from that cutover state and does not claim to represent historical schema creation.
