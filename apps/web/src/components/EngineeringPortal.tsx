@@ -34,6 +34,13 @@ import {
   MODEL_BOUNDARY,
 } from '@jaryan/shared-knowledge/src/assumptions/model-assumptions.ts';
 import { REFERENCES } from '@jaryan/shared-knowledge/src/sources/references.ts';
+import {
+  EvidenceChain,
+  IntegrityOverview,
+  StateBadge,
+  WorkspaceNavigation,
+  WorkspaceSection,
+} from './EngineeringWorkspaceFoundation';
 
 const SiteMap = dynamic(() => import('./SiteMap'), {
   ssr: false,
@@ -453,6 +460,7 @@ export function EngineeringPortal() {
 
   return (
     <main className="portal-shell">
+      <WorkspaceNavigation />
       <header className="command-bar">
         <div className="brand">
           <span className="brand__mark">{icons.mark}</span>
@@ -475,6 +483,35 @@ export function EngineeringPortal() {
           </button>
         </div>
       </header>
+
+      <div id="workspace-overview" className="workspace-main">
+      <WorkspaceSection className="workspace-hero">
+        <div>
+          <span className="eyebrow">Engineering intelligence workspace</span>
+          <h2>Reconstruct the engineering story before acting on the result.</h2>
+          <p>
+            Jaryan presents a projection of the current application contracts. Identity, evidence,
+            provenance, decision, revision, authority, and unknown state remain visible.
+          </p>
+        </div>
+        <div className="workspace-hero__state">
+          <StateBadge state="NON_AUTHORITATIVE" detail="Concept screening only" />
+          <span>Local browser session · no production data asserted</span>
+        </div>
+      </WorkspaceSection>
+      <IntegrityOverview />
+      <EvidenceChain
+        nodes={[
+          { label: 'Physical asset', identity: 'ASSET-UNKNOWN', state: 'UNKNOWN', detail: 'No canonical asset identity in this session' },
+          { label: 'Engineering model', identity: 'MODEL-LOCAL-SCREEN', state: 'LOCAL_VERIFIED', detail: 'Deterministic screening model' },
+          { label: 'Calculation', identity: 'CALC-LOCAL-SESSION', state: 'CURRENT', detail: 'Recomputed from settled user inputs' },
+          { label: 'Evidence', identity: 'EVIDENCE-UNATTACHED', state: 'REVIEW_REQUIRED', detail: 'Field measurements are required' },
+          { label: 'Decision', identity: 'DECISION-UNKNOWN', state: 'UNKNOWN', detail: 'No engineering decision recorded' },
+          { label: 'Document', identity: 'DOC-PRINT-OPTIONAL', state: 'NON_AUTHORITATIVE', detail: 'Printable downstream report only' },
+          { label: 'Revision', identity: 'REVISION-UNKNOWN', state: 'UNKNOWN', detail: 'No historical lineage in local session' },
+        ]}
+      />
+      </div>
 
       <section className="project-strip" aria-label="Study summary">
         <div className="project-strip__identity">

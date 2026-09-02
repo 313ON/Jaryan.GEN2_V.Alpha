@@ -3,8 +3,8 @@ import 'leaflet/dist/leaflet.css';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Jaryan Engineering Portal',
-  description: 'A transparent, browser-based engineering concept estimator.',
+  title: 'Jaryan · Engineering Intelligence Workspace',
+  description: 'Traceable engineering workspace with explicit evidence, authority, revision, and unknown states.',
 };
 
 export const viewport: Viewport = {
@@ -18,7 +18,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="fa" dir="rtl">
       <body>{children}</body>
     </html>
   );
