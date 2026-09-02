@@ -3,8 +3,13 @@ import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
+import dotenv from 'dotenv';
 import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
+
+dotenv.config({
+  path: fileURLToPath(new URL('../../../.env', import.meta.url)),
+});
 
 const apiDirectory = fileURLToPath(new URL('../', import.meta.url));
 const port = 3017;
