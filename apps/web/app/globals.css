@@ -294,6 +294,7 @@ code,
 
 .evidence-chain__nodes {
   display: grid;
+  direction: ltr;
   grid-template-columns: repeat(7, minmax(125px, 1fr));
   gap: 8px;
   padding: 0;
