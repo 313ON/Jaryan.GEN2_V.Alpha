@@ -142,7 +142,7 @@ export async function extractPostgresCatalog(client: PostgresQueryClient): Promi
             then jsonb_build_object('kind','column','name',a.attname)
             else jsonb_build_object(
               'kind','expression',
-              'expression',pg_get_indexdef(x.indexrelid,k.ordinality,false)
+              'expression',pg_get_indexdef(x.indexrelid,k.ordinality::int,false)
             )
           end
         end order by k.ordinality

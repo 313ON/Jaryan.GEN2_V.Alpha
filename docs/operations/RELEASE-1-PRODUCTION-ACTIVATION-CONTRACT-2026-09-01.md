@@ -6,8 +6,12 @@ Release identity:
 
 - Release: `JARYAN-RELEASE-1-RECUT-2026-09-01`
 - Branch: `release/release-1-recut-2026-09-01`
-- Commit: `05c8bf31d06b6abfe82fb84f5753cc2d228d2e0f`
+- Tagged release commit: `05c8bf31d06b6abfe82fb84f5753cc2d228d2e0f`
 - Annotated tag: `release-1-recut-2026-09-01`
+
+The hardening checkout continues from this tagged release. The tag is
+immutable and must not be moved; deploy the later clean SHA recorded by the
+current activation handoff when deploying the hardened checkout.
 
 This document defines prerequisites for a separate production activation gate.
 It is not a deployment procedure and does not authorize activation.
@@ -38,7 +42,7 @@ created by this contract.
 ### Node.js
 
 ```text
-REQUIRED VERSION: UNKNOWN until approved by Operations
+REQUIRED VERSION: Node.js >=22.0.0 <23; exact Operations approval remains required
 ```
 
 Approval evidence must identify the exact Node.js version, Windows

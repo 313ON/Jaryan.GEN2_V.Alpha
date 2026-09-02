@@ -1,5 +1,11 @@
 # Production Activation Parameter Manifest
 
+> Historical handoff note: the certified `e810e41` values below are not the
+> current Release-1 re-cut identity. For the current hardened checkout, use
+> `docs/operations/RELEASE-1-ACTIVATION-HANDOFF-2026-09-02.md`, whose release
+> tag is `release-1-recut-2026-09-01` and whose deployable SHA is the current
+> clean `HEAD`.
+
 Status: **READY WITH WARNINGS — OPERATIONS INPUTS REQUIRED**
 
 This document is a production handoff artifact. It is not a deployment

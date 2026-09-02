@@ -16,6 +16,7 @@
     "build": "tsc -p tsconfig.build.json",
     "start": "node dist/main.js",
     "typecheck": "tsc --noEmit",
+    "test": "node --test tests/runtime-config.test.mjs",
     "release:e2e": "node --test tests/release-e2e.test.mjs"
   },
   "devDependencies": {

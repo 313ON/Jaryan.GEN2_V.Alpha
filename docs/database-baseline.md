@@ -64,3 +64,17 @@ then introspect the resulting public application objects, canonicalize them
 with the rules above, and compare the resulting fingerprint with the manifest
 fingerprint. Future migrations start after this explicit cutover boundary.
 The original schema creation history is unavailable. This release baseline records the verified schema state adopted at release cutover. It is authoritative only for future migrations from that cutover state and does not claim to represent historical schema creation.
+
+## Recovery verification note
+
+`npm run recovery:verify:local` validates a local custom-format backup by
+restoring it into an isolated generated database, comparing row counts and
+migration history, and comparing the restored catalog with the source
+catalog. The current local recovery result is `PASS`.
+
+The historical JSON manifest stores table columns in lexicographic order,
+whereas PostgreSQL preserves the declaration order from the baseline SQL.
+Because ordered table columns are intentionally fingerprint-sensitive, the
+live source/restore fingerprint is distinct from the historical manifest
+fingerprint. This is retained as a compatibility finding; it is not
+production backup evidence and must not be silently normalized away.

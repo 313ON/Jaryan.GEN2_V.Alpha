@@ -2,6 +2,11 @@
 
 Status: `READY_PENDING_EXTERNAL_GATE`
 
+The immutable release tag `release-1-recut-2026-09-01` identifies commit
+`05c8bf31d06b6abfe82fb84f5753cc2d228d2e0f`. The hardened deployable checkout
+is the later clean commit recorded by `git rev-parse HEAD`; do not move the
+existing tag.
+
 This handoff is for the `Production Activation Gate` following the closed
 Release-1 local activation preflight. It describes executable repository
 behavior and separates local evidence from production evidence.
@@ -27,10 +32,21 @@ approval are recorded.
 - Migration authority: `prisma/migrations/`; production policy is
   `prisma migrate deploy`, never `db push` or reset.
 - Readiness command: `npm run activation:readiness`
+- Local recovery evidence: `npm run recovery:verify:local`
 
 The API validates its runtime URL, host, and port before starting. It connects
 to PostgreSQL during Nest module initialization, so a healthy process also
 proves startup database connectivity.
+
+Configuration classification:
+
+| Variable | Required | Secret | Scope |
+|---|---|---|---|
+| `DATABASE_URL` | Yes for Prisma CLI | Yes | Operations/production |
+| `PRISMA_DIRECT_TCP_URL` | Yes for API runtime | Yes | Operations/production |
+| `PORT` | Optional, default `3001` | No | Operations/production |
+| `HOST` | Optional, default `0.0.0.0` | No | Operations/production |
+| `NODE_ENV` | Optional metadata | No | Operations/production |
 
 ## Required pre-activation evidence
 
@@ -65,6 +81,49 @@ activation evidence until it has been restored into an isolated target and
 validated against the baseline manifest. Application rollback is to the last
 approved release SHA/tag. Database rollback is forward-only unless Operations
 has a separately verified restore plan; do not fabricate down migrations.
+
+The local recovery command produces `LOCAL_RECOVERY_EVIDENCE` only. It creates
+an isolated database, validates the restored schema/data/migration parity, and
+removes that target. It does not satisfy the production backup gate. The
+historical manifest has lexicographically ordered table columns while the
+physical baseline SQL and live database preserve declaration order; this is a
+known baseline compatibility finding and is not treated as production
+evidence.
+
+## Validation accounting
+
+The workspace scripts execute 588 tests:
+
+- web: 5
+- shared application: 159
+- shared domain: 370
+- shared infrastructure: 41
+- shared knowledge: 11
+- API runtime configuration: 2
+
+The API release E2E is a separate command and executes 1 additional test.
+The two root TypeScript test files are not wired into any package script and
+contain no Node test declarations. Therefore the current executed total is
+`589`, not `427` or `370`: `427` was an incomplete historical sum, while
+`370` was only the shared-domain package result.
+
+## Lint policy
+
+The repository has no ESLint, Biome, Prettier, CI lint job, or lint script.
+Next production builds perform framework type/lint checks, and all workspace
+typechecks pass. A standalone lint gate is not part of this Release-1
+architecture; introducing one is deferred to a tooling milestone.
+
+## Dependency audit disposition
+
+The current audit reports 14 advisories: 8 high and 6 moderate, with no
+critical findings. The Next.js findings are runtime-reachable and require a
+tested major-line upgrade; the Nest platform findings require Nest 12; the
+Prisma/deepmerge/mysql2 findings are in the Prisma CLI/tooling dependency
+tree and are not loaded by the PostgreSQL runtime. No force upgrade was
+accepted because it would replace the verified Prisma 7/Nest 10 baseline
+without compatibility evidence. These risks require a dedicated dependency
+upgrade milestone before internet-facing production exposure.
 
 Rollback triggers include failed health checks, failed smoke tests, database
 connectivity loss, schema incompatibility, authentication failure, or

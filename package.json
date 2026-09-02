@@ -7,6 +7,7 @@
     "db:provision:baseline": "node scripts/provision-release-baseline.mjs",
     "release:preflight": "node scripts/verify-release-preflight.mjs",
     "activation:readiness": "node scripts/verify-production-activation.mjs",
+    "recovery:verify:local": "npm run build --workspace @jaryan/shared-infrastructure && node scripts/verify-local-recovery.mjs",
     "dev": "npm run dev --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm run test --workspaces --if-present"

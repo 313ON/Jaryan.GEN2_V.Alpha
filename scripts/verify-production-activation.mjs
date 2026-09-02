@@ -31,6 +31,12 @@ async function exists(relativePath) {
   }
 }
 
+async function fileSha256(relativePath) {
+  return createHash('sha256').update(await readFile(
+    `${root}${relativePath.replaceAll('/', '\\')}`,
+  )).digest('hex');
+}
+
 async function git(args) {
   const result = await exec('git', args, { cwd: root });
   return result.stdout.trim();
@@ -40,6 +46,12 @@ const branch = await git(['branch', '--show-current']);
 const head = await git(['rev-parse', 'HEAD']);
 const status = await git(['status', '--porcelain']);
 const tag = await git(['tag', '--points-at', 'HEAD']);
+let releaseTagCommit = null;
+try {
+  releaseTagCommit = await git(['rev-parse', 'release-1-recut-2026-09-01^{commit}']);
+} catch {
+  releaseTagCommit = null;
+}
 const manifest = JSON.parse(await readFile(
   `${root}prisma/baseline/schema-manifest.json`,
   'utf8',
@@ -49,12 +61,17 @@ const manifestFingerprint = createHash('sha256')
   .digest('hex');
 
 const artifactReady = (await Promise.all(expectedFiles.map(exists))).every(Boolean);
+const artifactChecksums = artifactReady
+  ? Object.fromEntries(await Promise.all(
+      expectedFiles.map(async (file) => [file, await fileSha256(file)]),
+    ))
+  : null;
 const localTarget = process.env['DATABASE_URL']?.includes('127.0.0.1:5432/jaryan_gen2')
   && process.env['PRISMA_DIRECT_TCP_URL']?.includes('127.0.0.1:5432/jaryan_gen2');
 
 const gates = {
   'Release artifact': state(artifactReady, artifactReady
-    ? 'Committed lockfile, schema authority, baseline, and production build outputs are present.'
+    ? 'Required lockfile, schema authority, baseline, and locally built release artifacts are present.'
     : 'One or more required release/build artifacts are absent.',
     'Build the release artifact and record its checksum.'),
   'Git state': state(branch === expectedBranch && status === '', {
@@ -63,6 +80,7 @@ const gates = {
     head,
     clean: status === '',
     tagAtHead: tag || null,
+    releaseTagCommit,
   }, 'Operations must approve the exact SHA/tag used for activation.'),
   'Local database evidence': state(Boolean(localTarget), localTarget
     ? 'Environment variables identify the verified local PostgreSQL target.'
@@ -89,7 +107,9 @@ console.log(JSON.stringify({
   milestone: 'Production Activation Gate',
   branch,
   head,
+  releaseTagCommit,
   manifestFingerprint,
+  artifactChecksums,
   gates,
 }, null, 2));
 
