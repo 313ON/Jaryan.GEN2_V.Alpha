@@ -116,7 +116,7 @@ interface NavigationSection {
   readonly items: readonly string[];
 }
 
-const navigation: readonly NavigationSection[] = [
+export const navigation: readonly NavigationSection[] = [
   { title: 'Command', items: ['Overview', 'Search'] },
   {
     title: 'Engineering',
@@ -127,7 +127,13 @@ const navigation: readonly NavigationSection[] = [
   { title: 'System', items: ['Users', 'Permissions', 'Settings'] },
 ];
 
-export function WorkspaceNavigation({ active = 'Overview' }: { active?: string }) {
+export function WorkspaceNavigation({
+  active = 'Overview',
+  onNavigate,
+}: {
+  active?: string;
+  onNavigate?: (item: string) => void;
+}) {
   return (
     <nav className="workspace-navigation" aria-label="Engineering workspace navigation">
       <div className="workspace-navigation__intro">
@@ -139,10 +145,11 @@ export function WorkspaceNavigation({ active = 'Overview' }: { active?: string }
         <div className="workspace-navigation__section" key={section.title}>
           <span className="workspace-navigation__section-title">{section.title}</span>
           {section.items.map((item) => (
-            <a
+            <button
+              type="button"
               className={item === active ? 'workspace-navigation__item workspace-navigation__item--active' : 'workspace-navigation__item'}
-              href={item === active ? '#workspace-overview' : `#${item.toLowerCase().replaceAll(' ', '-')}`}
               aria-current={item === active ? 'page' : undefined}
+              onClick={() => onNavigate?.(item)}
               key={item}
             >
               <span aria-hidden="true">{item === active ? '●' : '·'}</span>
@@ -150,7 +157,7 @@ export function WorkspaceNavigation({ active = 'Overview' }: { active?: string }
               {['Assets', 'Calculations', 'Evidence', 'Decisions', 'Documents', 'Revisions'].includes(item) && (
                 <StateBadge state="UNKNOWN" />
               )}
-            </a>
+            </button>
           ))}
         </div>
       ))}

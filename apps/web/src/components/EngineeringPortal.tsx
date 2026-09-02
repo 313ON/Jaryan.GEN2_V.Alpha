@@ -410,12 +410,56 @@ function ErrorCanvas({ errors }: { errors: FieldError[] }) {
   );
 }
 
+const VIEW_PURPOSE: Record<string, { eyebrow: string; title: string; description: string; question: string }> = {
+  Search: { eyebrow: 'Command / search', title: 'Find an engineering fact', description: 'Search is ready for a governed query capability. No indexed project records are connected to this local session.', question: 'What should be traceable?' },
+  Assets: { eyebrow: 'Engineering / physical reality', title: 'Physical assets', description: 'Canonical asset identity is not established in this session. Asset records must come from an application query contract.', question: 'What physical thing are we describing?' },
+  Models: { eyebrow: 'Engineering / representation', title: 'Engineering models', description: 'No persisted engineering model is available. The local screening model remains visible on Overview.', question: 'Which representation is authoritative?' },
+  Calculations: { eyebrow: 'Engineering / computation', title: 'Calculations', description: 'The active deterministic screening calculation is available on Overview. Historical calculation records are not connected here.', question: 'Which inputs and assumptions produced the result?' },
+  Evidence: { eyebrow: 'Traceability / source material', title: 'Evidence register', description: 'No evidence attachments are available in this browser session. Required field measurements are listed in the study boundary.', question: 'What supports this statement?' },
+  Decisions: { eyebrow: 'Engineering / decision', title: 'Engineering decisions', description: 'No decision record has been captured. A decision must remain unknown until an application capability supplies identity, rationale, authority, and evidence.', question: 'Why was this decision made?' },
+  Documents: { eyebrow: 'Output / document', title: 'Engineering documents', description: 'The browser can print the current non-authoritative screening report. No controlled document register is connected.', question: 'Which document preserves the engineering state?' },
+  Revisions: { eyebrow: 'History / reconstruction', title: 'Revision history', description: 'No revision lineage is available for this local session. Historical truth cannot be inferred from the current inputs.', question: 'What existed, and what changed?' },
+  Knowledge: { eyebrow: 'Knowledge / authority', title: 'Knowledge basis', description: 'The current study basis and reference boundary are available on Overview. A governed knowledge browser is not connected.', question: 'Which source is authoritative?' },
+  Graph: { eyebrow: 'Knowledge / relationships', title: 'Relationship graph', description: 'No persisted graph projection is available in this session. The canonical lifecycle is shown as a traceability chain on Overview.', question: 'How are objects related?' },
+  'AI Analysis': { eyebrow: 'Analysis / non-authoritative', title: 'AI analysis', description: 'No AI interpretation is active. Jaryan will not present generated claims without explicit evidence and authority boundaries.', question: 'What is known, derived, suggested, or unknown?' },
+  Runtime: { eyebrow: 'Operations / runtime', title: 'Runtime status', description: 'This local session is running in the browser. Production runtime telemetry is not available to the presentation layer.', question: 'Is the capability available and bounded?' },
+  Database: { eyebrow: 'Operations / persistence', title: 'Database status', description: 'The browser console is session-only. No persisted project data is asserted here.', question: 'Where is this information stored?' },
+  Releases: { eyebrow: 'Operations / delivery', title: 'Release state', description: 'Release metadata is outside this local engineering workspace view.', question: 'Which capability version produced this state?' },
+  Audit: { eyebrow: 'Operations / trace', title: 'Audit trail', description: 'No persisted audit events are available in this session.', question: 'Who changed what, when, and why?' },
+  Users: { eyebrow: 'System / access', title: 'Users', description: 'User administration is not available in this browser-local capability.', question: 'Who is allowed to act?' },
+  Permissions: { eyebrow: 'System / access', title: 'Permissions', description: 'Permission policy is not asserted by this presentation-only session.', question: 'What authority does this user have?' },
+  Settings: { eyebrow: 'System / configuration', title: 'Settings', description: 'There are no persisted workspace settings in this session.', question: 'Which configuration is active?' },
+};
+
+function UnavailableView({ name, onBack }: { name: string; onBack: () => void }) {
+  const view = VIEW_PURPOSE[name] ?? VIEW_PURPOSE.Overview;
+  return (
+    <section className="workspace-view workspace-view--unavailable" aria-labelledby="workspace-view-title">
+      <div className="workspace-view__intro">
+        <span className="eyebrow">{view.eyebrow}</span>
+        <h2 id="workspace-view-title">{view.title}</h2>
+        <p>{view.description}</p>
+      </div>
+      <div className="workspace-view__question">
+        <span className="eyebrow">Engineering question</span>
+        <strong>{view.question}</strong>
+        <span className="state-line"><StateBadge state="UNKNOWN" detail="Capability not connected" /></span>
+      </div>
+      <div className="workspace-view__actions">
+        <button className="primary-button" type="button" onClick={onBack}>Return to Overview</button>
+        <span>Nothing here is fabricated. This state is intentionally explicit.</span>
+      </div>
+    </section>
+  );
+}
+
 export function EngineeringPortal() {
   const [projectName, setProjectName] = useState('Off-grid shelter study');
   const [inputs, setInputs] = useState(DEFAULT_ENGINEERING_INPUTS);
   const [settledInputs, setSettledInputs] = useState(inputs);
   const [mapEnabled, setMapEnabled] = useState(false);
   const [generatedAt, setGeneratedAt] = useState('');
+  const [activeView, setActiveView] = useState('Overview');
 
   useEffect(() => {
     setGeneratedAt(new Date().toLocaleString());
@@ -460,7 +504,7 @@ export function EngineeringPortal() {
 
   return (
     <main className="portal-shell">
-      <WorkspaceNavigation />
+      <WorkspaceNavigation active={activeView} onNavigate={setActiveView} />
       <header className="command-bar">
         <div className="brand">
           <span className="brand__mark">{icons.mark}</span>
@@ -471,7 +515,7 @@ export function EngineeringPortal() {
         </div>
         <div className="command-bar__title">
           <span className="breadcrumb">Workspace / Site study / Local session</span>
-          <h1>Engineering field console</h1>
+          <h1>{activeView === 'Overview' ? 'Engineering field console' : VIEW_PURPOSE[activeView]?.title ?? activeView}</h1>
         </div>
         <div className="command-bar__actions">
           <StatusPill tone={isRecalculating ? 'caution' : 'good'}>
@@ -484,6 +528,10 @@ export function EngineeringPortal() {
         </div>
       </header>
 
+      {activeView !== 'Overview' ? (
+        <UnavailableView name={activeView} onBack={() => setActiveView('Overview')} />
+      ) : (
+      <>
       <div id="workspace-overview" className="workspace-main">
       <WorkspaceSection className="workspace-hero">
         <div>
@@ -1155,6 +1203,9 @@ export function EngineeringPortal() {
           </section>
         </section>
       </div>
+
+      </>
+      )}
 
       <section className="print-report" aria-label="Printable engineering report">
         <header>
