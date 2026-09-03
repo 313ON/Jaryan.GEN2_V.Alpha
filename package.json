@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "build": "npm run build --workspace @jaryan/web && npm run build --workspace @jaryan/shared-domain && npm run build --workspace @jaryan/shared-application && npm run build --workspace @jaryan/shared-infrastructure && npm run build --workspace @jaryan/api",
+    "build": "npm run build --workspace @jaryan/shared-domain && npm run build --workspace @jaryan/shared-infrastructure && npm run build --workspace @jaryan/shared-application && npm run build --workspace @jaryan/web && npm run build --workspace @jaryan/api",
     "db:provision:baseline": "node scripts/provision-release-baseline.mjs",
     "release:preflight": "node scripts/verify-release-preflight.mjs",
     "activation:readiness": "node scripts/verify-production-activation.mjs",
