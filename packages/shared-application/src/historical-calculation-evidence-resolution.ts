@@ -1,5 +1,6 @@
 import {
   reconstructDurableCalculationSnapshot,
+  DurableCalculationSnapshotError,
   validateDurableCalculationSnapshot,
   validateEngineeringArtifactIdentity,
   type DurableCalculationSnapshot,
@@ -103,7 +104,12 @@ export async function resolveHistoricalCalculationEvidence(
     };
   } catch (error) {
     return {
-      ...emptyResolution(input.calculationIdentity, 'INVALID'),
+      ...emptyResolution(
+        input.calculationIdentity,
+        error instanceof DurableCalculationSnapshotError
+          ? error.resolutionStatus
+          : 'INVALID',
+      ),
       candidates,
       snapshot,
       diagnostic: errorMessage(error),

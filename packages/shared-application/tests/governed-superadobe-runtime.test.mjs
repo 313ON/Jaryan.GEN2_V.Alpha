@@ -81,7 +81,7 @@ test('wrong calculation or invalid historical evidence is explicit', async () =>
   assert.equal(restarted.status, 'RESOLVED');
 });
 
-test('result-affecting unresolved evidence remains an explicit INVALID outcome', async () => {
+test('result-affecting missing historical evidence remains an explicit NOT_FOUND outcome', async () => {
   const store = new InMemoryDurableCalculationSnapshotStore();
   const runtime = new GovernedSuperAdobeRuntime(store);
   const execution = await runtime.execute(context('project-a'), inputs);
@@ -103,7 +103,7 @@ test('result-affecting unresolved evidence remains an explicit INVALID outcome',
     binding.calculationIdentity.id,
     unresolved.snapshotId,
   );
-  assert.equal(result.status, 'INVALID');
+  assert.equal(result.status, 'NOT_FOUND');
 });
 
 test('invalid input is rejected before governed execution', async () => {

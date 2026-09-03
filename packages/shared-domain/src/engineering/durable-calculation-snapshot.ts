@@ -86,6 +86,12 @@ export interface DurableSnapshotReconstruction {
   readonly diagnostics: readonly unknown[];
 }
 
+export type DurableSnapshotResolutionStatus =
+  | 'NOT_FOUND'
+  | 'AMBIGUOUS'
+  | 'INVALID'
+  | 'UNKNOWN';
+
 export interface DurableCalculationSnapshotReconstructionContext {
   readonly registry: EngineeringKnowledgeRegistry;
   readonly graph?: ResolvedEngineeringKnowledgeGraph;
@@ -93,9 +99,15 @@ export interface DurableCalculationSnapshotReconstructionContext {
 
 export class DurableCalculationSnapshotError extends Error {
   readonly code = 'DURABLE_CALCULATION_SNAPSHOT_INVALID';
-  constructor(message: string) {
+  readonly resolutionStatus: DurableSnapshotResolutionStatus;
+
+  constructor(
+    message: string,
+    resolutionStatus: DurableSnapshotResolutionStatus = 'INVALID',
+  ) {
     super(message);
     this.name = 'DurableCalculationSnapshotError';
+    this.resolutionStatus = resolutionStatus;
   }
 }
 
@@ -261,6 +273,7 @@ export function reconstructDurableCalculationSnapshot(
       if (binding.resultAffecting) {
         throw new DurableCalculationSnapshotError(
           `Reconstruction blocked by unresolved calculation-relevant binding: ${binding.reference}.`,
+          resolutionStatusOfBinding(binding),
         );
       }
       return binding;
@@ -314,6 +327,7 @@ function resolvePinnedBinding(
   if (resolution.status !== 'RESOLVED' || resolution.identityId !== binding.reference) {
     throw new DurableCalculationSnapshotError(
       `Pinned binding did not resolve exactly: ${binding.reference}.`,
+      resolutionStatusOfArtifactResolution(resolution.status),
     );
   }
   if (binding.identity && binding.identity.id !== binding.reference) {
@@ -343,8 +357,27 @@ function resolvePinnedIdentity(
   if (resolution.status !== 'RESOLVED' || resolution.identityId !== identity.id) {
     throw new DurableCalculationSnapshotError(
       `Pinned provenance identity did not resolve exactly: ${identity.id}.`,
+      resolutionStatusOfArtifactResolution(resolution.status),
     );
   }
+}
+
+function resolutionStatusOfBinding(
+  binding: DurableCalculationBinding,
+): DurableSnapshotResolutionStatus {
+  return binding.resolution === 'NOT_FOUND' ||
+    binding.resolution === 'AMBIGUOUS' ||
+    binding.resolution === 'INVALID'
+    ? binding.resolution
+    : 'UNKNOWN';
+}
+
+function resolutionStatusOfArtifactResolution(
+  status: EngineeringArtifactResolutionStatus,
+): DurableSnapshotResolutionStatus {
+  return status === 'NOT_FOUND' || status === 'AMBIGUOUS' || status === 'INVALID'
+    ? status
+    : 'UNKNOWN';
 }
 
 function validateBindings(bindings: readonly DurableCalculationBinding[]): readonly string[] {
