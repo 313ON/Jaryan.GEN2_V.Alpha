@@ -21,7 +21,7 @@ import { buildTraceabilityLink } from './traceability.ts';
 import {
   captureDurableSnapshotsFromPrimitiveExecution,
 } from './durable-calculation-snapshot.ts';
-import type { DurableCalculationSnapshotStore } from '@jaryan/shared-infrastructure';
+import type { DurableCalculationSnapshotStore } from './ports/durable-calculation-snapshot-store.ts';
 
 export interface SuperAdobeSolverRequest {
   readonly projectId: string;

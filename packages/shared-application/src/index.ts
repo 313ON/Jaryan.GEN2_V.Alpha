@@ -20,5 +20,7 @@ export * from './observation-evaluation.ts';
 export * from './capture-observation.ts';
 export * from './field-collection-worklist.ts';
 export * from './durable-calculation-snapshot.ts';
+export * from './durable-calculation-snapshot-knowledge-registry.ts';
 export * from './historical-calculation-evidence-resolution.ts';
 export * from './governed-superadobe-runtime.ts';
+export * from './ports/durable-calculation-snapshot-store.ts';

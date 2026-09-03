@@ -11,10 +11,10 @@ import {
 } from '@jaryan/shared-domain';
 import type {
   DurableCalculationSnapshotStore,
-} from '@jaryan/shared-infrastructure';
+} from './ports/durable-calculation-snapshot-store.ts';
 import {
   createEngineeringKnowledgeRegistryFromSnapshot,
-} from '@jaryan/shared-infrastructure';
+} from './durable-calculation-snapshot-knowledge-registry.ts';
 import type { AuthorizedProjectContext } from './runtime-security.ts';
 import {
   solveSuperAdobe,

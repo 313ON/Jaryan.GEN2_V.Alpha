@@ -6,7 +6,7 @@ import {
   type DurableCalculationSnapshot,
   type DurableCalculationSnapshotInput,
 } from '@jaryan/shared-domain';
-import type { DurableCalculationSnapshotStore } from '@jaryan/shared-infrastructure';
+import type { DurableCalculationSnapshotStore } from './ports/durable-calculation-snapshot-store.ts';
 
 /**
  * Application boundary for an execution that has already passed the

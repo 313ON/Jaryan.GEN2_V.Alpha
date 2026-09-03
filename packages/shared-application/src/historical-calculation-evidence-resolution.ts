@@ -7,7 +7,7 @@ import {
   type EngineeringArtifactIdentity,
   type EngineeringKnowledgeRegistry,
 } from '@jaryan/shared-domain';
-import type { DurableCalculationSnapshotStore } from '@jaryan/shared-infrastructure';
+import type { DurableCalculationSnapshotStore } from './ports/durable-calculation-snapshot-store.ts';
 
 export type HistoricalCalculationEvidenceResolutionStatus =
   | 'RESOLVED'

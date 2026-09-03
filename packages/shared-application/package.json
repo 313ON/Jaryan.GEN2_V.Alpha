@@ -26,7 +26,6 @@
   },
   "dependencies": {
     "@jaryan/shared-domain": "0.1.0",
-    "@jaryan/shared-knowledge": "0.1.0",
-    "@jaryan/shared-infrastructure": "0.1.0"
+    "@jaryan/shared-knowledge": "0.1.0"
   }
 }
