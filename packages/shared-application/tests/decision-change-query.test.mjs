@@ -12,6 +12,7 @@ import {
   decisionAppliesTo,
   decisionDerivedFrom,
   decisionSupersedes,
+  engineeringArtifactIdentity,
   knowledgeGraphEndpoint,
   physicalReferentIdentity,
   relationshipDeclaration,
@@ -25,6 +26,13 @@ const packageFixture = createEngineeringKnowledgePackageFromPrimitive(
   ]),
 );
 const registry = createEngineeringKnowledgeRegistry().register(packageFixture);
+const historicalPackage = createEngineeringKnowledgePackageFromPrimitive(
+  accumulatedWeightPrimitive([
+    { weightKn: 10, elevationM: 2 },
+    { weightKn: 20, elevationM: 4 },
+  ]),
+  { version: '2' },
+);
 const physicalEndpoint = knowledgeGraphEndpoint({
   kind: 'PHYSICAL_REFERENT',
   status: 'RESOLVED',
@@ -80,6 +88,8 @@ const changeEvent = engineeringChangeEvent({
   evidenceReferences: [packageFixture.provenance.sources[0]],
   supersedes: [],
 });
+
+const withoutFingerprint = ({ fingerprint, ...value }) => value;
 
 const declaration = (fact, overrides = {}) =>
   relationshipDeclaration({
@@ -237,4 +247,133 @@ test('typed query ordering is independent of declaration registration order', ()
   assert.deepEqual(forward, reverse);
   assert.equal(Object.isFrozen(forward), true);
   assert.equal(Object.isFrozen(forward.relationships), true);
+});
+
+test('AIP-03 pins decision identity and evidence to exact historical revisions', () => {
+  const newerPackage = createEngineeringKnowledgePackageFromPrimitive(
+    accumulatedWeightPrimitive([
+      { weightKn: 15, elevationM: 2 },
+      { weightKn: 25, elevationM: 4 },
+    ]),
+    { version: '3' },
+  );
+  const historicalRegistry = registry
+    .register(historicalPackage)
+    .register(newerPackage);
+  const historicalEvidence = historicalPackage.provenance.sources[0];
+  const observedReferences = [];
+  const evidenceAdapter = {
+    resolve(references) {
+      observedReferences.push(...references.map((reference) => reference.id));
+      return { status: 'RESOLVED', complete: true };
+    },
+  };
+  const historicalDecision = engineeringDecision({
+    ...withoutFingerprint(decision),
+    evidenceReferences: [historicalEvidence],
+  });
+  const historicalFact = decisionAppliesTo(historicalDecision, physicalEndpoint);
+  const query = createEngineeringRelationshipQuery(historicalRegistry, [
+    declaration(historicalFact, { evidenceReferences: [historicalEvidence] }),
+    declaration(decisionDerivedFrom(historicalDecision, historicalEvidence), {
+      evidenceReferences: [historicalEvidence],
+    }),
+  ]);
+  const reconstructed = query.reconstructDecision(
+    historicalDecision,
+    queryContext,
+    evidenceAdapter,
+  );
+
+  assert.equal(reconstructed.identityResolution, 'RESOLVED');
+  assert.equal(reconstructed.evidence.status, 'RESOLVED');
+  assert.equal(Object.isFrozen(reconstructed.evidence), true);
+  assert.ok(observedReferences.length > 0);
+  assert.ok(observedReferences.every((id) => id === historicalEvidence.id));
+  assert.equal(
+    reconstructed.relationships.find(
+      (item) => item.fact.predicate === 'DERIVED_FROM',
+    ).fact.object.identity.id,
+    historicalEvidence.id,
+  );
+});
+
+test('AIP-03 historical decision reconstruction is unchanged by newer registries', () => {
+  const historicalDecision = engineeringDecision({
+    ...withoutFingerprint(decision),
+    evidenceReferences: [packageFixture.provenance.sources[0]],
+  });
+  const fact = decisionAppliesTo(historicalDecision, physicalEndpoint);
+  const historicalDeclarations = [
+    declaration(fact),
+    declaration(decisionDerivedFrom(
+      historicalDecision,
+      packageFixture.provenance.calculation,
+    )),
+  ];
+  const first = createEngineeringRelationshipQuery(registry, historicalDeclarations)
+    .reconstructDecision(historicalDecision, queryContext, {
+      resolve: () => ({ status: 'RESOLVED', complete: true }),
+    });
+  const newer = createEngineeringKnowledgePackageFromPrimitive(
+    accumulatedWeightPrimitive([
+      { weightKn: 10, elevationM: 2 },
+      { weightKn: 20, elevationM: 4 },
+    ]),
+    { version: '4' },
+  );
+  const second = createEngineeringRelationshipQuery(
+    registry.register(newer),
+    historicalDeclarations,
+  ).reconstructDecision(historicalDecision, queryContext, {
+    resolve: () => ({ status: 'RESOLVED', complete: true }),
+  });
+
+  assert.deepEqual(second, first);
+  assert.equal(first.identityResolution, 'RESOLVED');
+  assert.equal(first.evidence.status, 'RESOLVED');
+});
+
+test('AIP-03 missing and invalid decision provenance remain explicit', () => {
+  const missingEvidence = engineeringArtifactIdentity({
+    type: 'SOURCE',
+    systemCode: 'SA',
+    slug: 'MISSING-HISTORICAL-EVIDENCE',
+    sequence: 1,
+    name: 'Missing historical evidence',
+    version: '2',
+  });
+  const missing = createEngineeringRelationshipQuery(registry).reconstructDecision(
+    engineeringDecision({
+      ...withoutFingerprint(decision),
+      evidenceReferences: [missingEvidence],
+    }),
+    queryContext,
+  );
+  assert.equal(missing.identityResolution, 'RESOLVED');
+  assert.deepEqual(missing.evidence, {
+    status: 'NOT_FOUND',
+    complete: false,
+  });
+
+  const invalid = createEngineeringRelationshipQuery(registry).reconstructDecision(
+    {
+      ...decision,
+      evidenceReferences: [
+        { ...packageFixture.provenance.sources[0], name: 'Tampered evidence' },
+      ],
+    },
+    queryContext,
+  );
+  assert.equal(invalid.identityResolution, 'RESOLVED');
+  assert.deepEqual(invalid.evidence, { status: 'INVALID', complete: false });
+
+  const malformed = createEngineeringRelationshipQuery(registry).reconstructDecision(
+    {
+      ...decision,
+      identity: { ...decision.identity, name: 'Tampered decision' },
+    },
+    queryContext,
+  );
+  assert.equal(malformed.identityResolution, 'INVALID');
 });

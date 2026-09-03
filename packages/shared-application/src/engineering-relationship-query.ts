@@ -1,11 +1,16 @@
 import {
   reconstructEngineeringRelationship,
+  resolveEngineeringArtifactReference,
   resolveEngineeringKnowledgeGraph,
+  stableSerialize,
   type EngineeringKnowledgeRegistry,
   type EngineeringChangeEvent,
   type EngineeringDecision,
+  type EngineeringArtifactIdentity,
+  type EngineeringArtifactResolutionStatus,
   type EngineeringKnowledgeGraphPredicate,
   type RelationshipEvidenceAdapter,
+  type RelationshipEvidenceResolution,
   type RelationshipFact,
   type RelationshipQueryContext,
   type RelationshipReconstruction,
@@ -48,11 +53,23 @@ export interface EngineeringRelationshipQuery {
 
 export interface EngineeringDecisionQueryResult {
   readonly decision: EngineeringDecision;
+  /**
+   * Exact identity resolution against the registry captured by this query.
+   * This never selects a base-id latest revision.
+   */
+  readonly identityResolution: EngineeringArtifactResolutionStatus;
+  /**
+   * Resolution of the decision's own pinned evidence references. The
+   * evidence adapter remains the authority for evidence completeness.
+   */
+  readonly evidence: RelationshipEvidenceResolution;
   readonly relationships: readonly RelationshipReconstruction[];
 }
 
 export interface EngineeringChangeEventQueryResult {
   readonly changeEvent: EngineeringChangeEvent;
+  readonly identityResolution: EngineeringArtifactResolutionStatus;
+  readonly evidence: RelationshipEvidenceResolution;
   readonly relationships: readonly RelationshipReconstruction[];
 }
 
@@ -134,6 +151,12 @@ export function createEngineeringRelationshipQuery(
     ): EngineeringDecisionQueryResult {
       return Object.freeze({
         decision,
+        identityResolution: resolveExactIdentity(registry, decision.identity),
+        evidence: resolveDeclarationEvidence(
+          registry,
+          decision.evidenceReferences,
+          evidenceAdapter,
+        ),
         relationships: Object.freeze(
           reconstructSubjectRelationships(
             decision.identity.id,
@@ -158,6 +181,12 @@ export function createEngineeringRelationshipQuery(
     ): EngineeringChangeEventQueryResult {
       return Object.freeze({
         changeEvent,
+        identityResolution: resolveExactIdentity(registry, changeEvent.identity),
+        evidence: resolveDeclarationEvidence(
+          registry,
+          changeEvent.evidenceReferences,
+          evidenceAdapter,
+        ),
         relationships: Object.freeze(
           reconstructSubjectRelationships(
             changeEvent.identity.id,
@@ -175,6 +204,61 @@ export function createEngineeringRelationshipQuery(
       });
     },
   });
+}
+
+function resolveDeclarationEvidence(
+  registry: EngineeringKnowledgeRegistry,
+  references: readonly EngineeringArtifactIdentity[],
+  evidenceAdapter: RelationshipEvidenceAdapter | undefined,
+): RelationshipEvidenceResolution {
+  if (references.length === 0) {
+    return evidenceResolution('NOT_FOUND', false);
+  }
+
+  const resolutions = references.map((reference) =>
+    resolveExactIdentity(registry, reference),
+  );
+  if (resolutions.includes('INVALID')) {
+    return evidenceResolution('INVALID', false);
+  }
+  if (resolutions.includes('AMBIGUOUS')) {
+    return evidenceResolution('AMBIGUOUS', false);
+  }
+  if (resolutions.includes('NOT_FOUND')) {
+    return evidenceResolution('NOT_FOUND', false);
+  }
+  if (evidenceAdapter === undefined) {
+    return evidenceResolution('UNVERIFIED', false);
+  }
+  const resolved = evidenceAdapter.resolve(references);
+  return evidenceResolution(resolved.status, resolved.complete);
+}
+
+function evidenceResolution(
+  status: RelationshipEvidenceResolution['status'],
+  complete: boolean,
+): RelationshipEvidenceResolution {
+  return Object.freeze({ status, complete });
+}
+
+function resolveExactIdentity(
+  registry: EngineeringKnowledgeRegistry,
+  identity: EngineeringArtifactIdentity,
+): EngineeringArtifactResolutionStatus {
+  const resolution = resolveEngineeringArtifactReference(registry, {
+    kind: 'identity',
+    identity,
+  });
+  if (resolution.status !== 'RESOLVED') {
+    return resolution.status;
+  }
+  const registered = resolution.candidates.find(
+    (candidate) => candidate.id === identity.id,
+  );
+  return registered !== undefined &&
+    stableSerialize(registered) === stableSerialize(identity)
+    ? 'RESOLVED'
+    : 'INVALID';
 }
 
 const DECISION_CHANGE_PREDICATES = new Set<EngineeringKnowledgeGraphPredicate>([
